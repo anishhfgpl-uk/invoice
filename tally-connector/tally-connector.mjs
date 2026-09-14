@@ -45,8 +45,11 @@ const server = http.createServer(async (req, res) => {
   const origin = req.headers.origin || '';
 
   if (req.method === 'OPTIONS') {
-    if (origin && !ALLOWED_ORIGINS.has(origin)) return send(res, 403, JSON.stringify({ ok: false, error: 'Origin not allowed' }), origin);
-    return send(res, 204, '', origin);
+    if (origin && !ALLOWED_ORIGINS.has(origin)) {
+      return send(res, 403, JSON.stringify({ ok: false, error: 'Origin not allowed' }), origin);
+    }
+    res.writeHead(204, corsHeaders(origin));
+    return res.end();
   }
 
   const url = new URL(req.url, `http://${req.headers.host}`);
@@ -58,20 +61,36 @@ const server = http.createServer(async (req, res) => {
         const r = await fetch(TALLY_URL, { signal: AbortSignal.timeout(3000) });
         tally = r.ok;
       } catch {}
-      return send(res, 200, JSON.stringify({ ok: true, service: 'tally-connector', tallyUrl: TALLY_URL, tally } ), origin);
+      return send(res, 200, JSON.stringify({
+        ok: true,
+        service: 'tally-connector',
+        tallyUrl: TALLY_URL,
+        tally
+      }), origin);
     }
 
-    if (url.pathname === '/tally/xml' && req.method === 'POST') {
-      if (origin && !ALLOWED_ORIGINS.has(origin)) return send(res, 403, JSON.stringify({ ok: false, error: 'Origin not allowed' }), origin);
+    if ((url.pathname === '/tally/xml' || url.pathname === '/tally') && req.method === 'POST') {
+      if (origin && !ALLOWED_ORIGINS.has(origin)) {
+        return send(res, 403, JSON.stringify({ ok: false, error: 'Origin not allowed' }), origin);
+      }
       const xml = await readBody(req);
-      if (!xml.trim()) return send(res, 400, JSON.stringify({ ok: false, error: 'XML body required' }), origin);
+      if (!xml.trim()) {
+        return send(res, 400, JSON.stringify({ ok: false, error: 'XML body required' }), origin);
+      }
       const result = await tallyPost(xml);
-      return send(res, 200, JSON.stringify({ ok: true, xml: result }), origin);
+      return send(res, 200, result, origin, 'text/xml; charset=utf-8');
+    }
+
+    if (url.pathname === '/tally' && req.method === 'GET') {
+      return send(res, 405, JSON.stringify({ ok: false, error: 'Use POST for Tally XML' }), origin);
     }
 
     return send(res, 404, JSON.stringify({ ok: false, error: 'Not found' }), origin);
   } catch (error) {
-    return send(res, 502, JSON.stringify({ ok: false, error: String(error?.message || error) }), origin);
+    return send(res, 502, JSON.stringify({
+      ok: false,
+      error: String(error?.message || error)
+    }), origin);
   }
 });
 
