@@ -37,9 +37,6 @@ EOF
           login='''<!-- ANISH_LOGIN_GATE_V1 -->\n<script>\n(function(){\n  const USER='Anish', PASS_HASH='4a6758a930704b9ad43d069d51419e4963aa5fc03b497a126f8a5fe401edd0f4';\n  async function sha(v){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}\n  function start(){\n    document.documentElement.style.visibility='hidden';\n    const style=document.createElement('style'); style.textContent=`#anish-login{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#07111f,#172554);font-family:Arial,sans-serif}#anish-login .box{width:min(420px,calc(100vw - 36px));padding:34px;border-radius:22px;background:#fff;box-shadow:0 24px 80px #0008;box-sizing:border-box}#anish-login h1{margin:0 0 8px;font-size:26px;color:#0f172a}#anish-login p{margin:0 0 24px;color:#64748b;font-size:14px}#anish-login label{display:block;margin:14px 0 7px;font-size:13px;font-weight:700;color:#334155}#anish-login input{width:100%;box-sizing:border-box;padding:12px 13px;border:1px solid #cbd5e1;border-radius:10px;font-size:15px;outline:none}#anish-login button{width:100%;margin-top:20px;padding:13px;border:0;border-radius:10px;background:#1d4ed8;color:#fff;font-size:15px;font-weight:800;cursor:pointer}#anish-login .err{min-height:18px;margin-top:10px;color:#dc2626;font-size:13px}`; document.head.appendChild(style);\n    const el=document.createElement('div'); el.id='anish-login'; el.innerHTML=`<div class="box"><h1>ANISH TECHNOLOGIES</h1><p>TallySync Pro · Secure Login</p><form><label>User ID</label><input id="anish-user" autocomplete="username" required><label>Password</label><input id="anish-pass" type="password" autocomplete="current-password" required><div class="err" id="anish-err"></div><button type="submit">Login</button></form></div>`;\n    document.body.appendChild(el);\n    el.querySelector('#anish-user').focus();\n    el.querySelector('form').addEventListener('submit',async function(e){e.preventDefault(); const u=el.querySelector('#anish-user').value.trim(), pw=el.querySelector('#anish-pass').value; if(u===USER && (await sha(pw))===PASS_HASH){el.remove(); style.remove(); document.documentElement.style.visibility='visible';}else{el.querySelector('#anish-err').textContent='Invalid User ID or Password';}});\n  }\n  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();\n})();\n</script>\n'''
           if 'ANISH_LOGIN_GATE_V1' not in s:
             s=s.replace('<head>', '<head>'+login, 1)
-          else:
-            import re
-            s=re.sub(r'<!-- ANISH_LOGIN_GATE_V1 -->.*?</script>\\n', login, s, count=1, flags=re.S)
           if 'TALLYSYNC_REMOTE_LIVE_V3' not in s:
             inject='''<!-- TALLYSYNC_REMOTE_LIVE_V3 --><script src="./tally-connector/live-tally.js"></script>'''
             s=s.replace('</head>',inject+'</head>')
@@ -64,8 +61,8 @@ EOF
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
+          git add "tallysync-pro---ledger-ageing-&-gst-invoicing (1).zip" "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
           git diff --cached --quiet && exit 0
-          git commit -m "Add selective WhatsApp ageing and API settings"
+          git commit -m "Rebuild invoice app with login Tally and WhatsApp"
           git pull --rebase origin main
           git push origin HEAD:main
