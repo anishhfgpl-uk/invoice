@@ -38,9 +38,7 @@ jobs:
           mkdir -p app/public/tally-connector
           cp tally-connector/tally-connector.mjs app/public/tally-connector/
           cp tally-connector/start-connector.bat app/public/tally-connector/
-          cp tally-connector/live-tally.js app/public/tally-connector/
-          cp tally-connector/hide-old-tally.js app/public/tally-connector/
-          cp tally-connector/brand-fix.js app/public/tally-connector/
+          cp tally-connector/safe-live.js app/public/tally-connector/
           cp tally-connector/whatsapp-ageing.js app/public/tally-connector/
           cp relay/server.mjs app/public/tally-connector/relay-server.mjs
 
@@ -48,17 +46,18 @@ jobs:
           from pathlib import Path
           p = Path('app/index.html')
           s = p.read_text(encoding='utf-8')
-          marker = '<!-- TALLYSYNC_REMOTE_LIVE_V4 -->'
-          tag = marker + '<script src="./tally-connector/live-tally.js"></script><script src="./tally-connector/hide-old-tally.js"></script><script src="./tally-connector/brand-fix.js"></script>'
+          marker = '<!-- TALLYSYNC_REMOTE_LIVE_V5 -->'
+          tag = marker + '<script src="./tally-connector/safe-live.js"></script>'
+          # Remove older connector injections so they cannot hide the application UI.
+          import re
+          s = re.sub(r'<script[^>]+src=["\']\./tally-connector/(?:live-tally|hide-old-tally|brand-fix)\.js["\'][^>]*></script>', '', s, flags=re.I)
+          s = re.sub(r'<!-- TALLYSYNC_REMOTE_LIVE_V4 -->', '', s)
           if marker not in s:
               s = s.replace('</head>', tag + '</head>', 1)
-          elif 'brand-fix.js' not in s:
-              s = s.replace('</head>', '<script src="./tally-connector/brand-fix.js"></script></head>', 1)
           p.write_text(s, encoding='utf-8')
+          PY
 
           # The app is published behind Cloudflare at /invoice/.
-          # Make Vite use that base path so JS/CSS assets are not requested from /
-          # (which otherwise produces a blank page on the /invoice/ URL).
           for cfg in list(Path('app').glob('vite.config.*')):
               text = cfg.read_text(encoding='utf-8')
               if 'base:' not in text:
@@ -68,10 +67,8 @@ jobs:
                   text = re.sub(r"base:\s*['\"][^'\"]*['\"]", "base: '/invoice/'", text, count=1)
               cfg.write_text(text, encoding='utf-8')
 
-          test -f app/public/tally-connector/live-tally.js
-          test -f app/public/tally-connector/hide-old-tally.js
-          test -f app/public/tally-connector/brand-fix.js
-          grep -q 'TALLYSYNC_REMOTE_LIVE_V4' app/index.html
+          test -f app/public/tally-connector/safe-live.js
+          grep -q 'TALLYSYNC_REMOTE_LIVE_V5' app/index.html
           rm -f "$ZIP"
           (cd app && zip -q -r "../$ZIP" .)
 
@@ -86,5 +83,5 @@ jobs:
           if git diff --cached --quiet; then
             exit 0
           fi
-          git commit -m 'Fix invoice blank page on /invoice/'
+          git commit -m 'Restore invoice application UI'
           git push origin HEAD:main
