@@ -39,6 +39,7 @@ jobs:
           cp tally-connector/tally-connector.mjs app/public/tally-connector/
           cp tally-connector/start-connector.bat app/public/tally-connector/
           cp tally-connector/live-tally.js app/public/tally-connector/
+          cp tally-connector/hide-old-tally.js app/public/tally-connector/
           cp tally-connector/whatsapp-ageing.js app/public/tally-connector/
           cp relay/server.mjs app/public/tally-connector/relay-server.mjs
 
@@ -46,15 +47,16 @@ jobs:
           from pathlib import Path
           p = Path('app/index.html')
           s = p.read_text(encoding='utf-8')
-          marker = '<!-- TALLYSYNC_REMOTE_LIVE_V3 -->'
-          tag = marker + '<script src="./tally-connector/live-tally.js"></script>'
+          marker = '<!-- TALLYSYNC_REMOTE_LIVE_V4 -->'
+          tag = marker + '<script src="./tally-connector/live-tally.js"></script><script src="./tally-connector/hide-old-tally.js"></script>'
           if marker not in s:
               s = s.replace('</head>', tag + '</head>', 1)
           p.write_text(s, encoding='utf-8')
           PY
 
           test -f app/public/tally-connector/live-tally.js
-          grep -q 'TALLYSYNC_REMOTE_LIVE_V3' app/index.html
+          test -f app/public/tally-connector/hide-old-tally.js
+          grep -q 'TALLYSYNC_REMOTE_LIVE_V4' app/index.html
           rm -f "$ZIP"
           (cd app && zip -q -r "../$ZIP" .)
 
@@ -69,5 +71,5 @@ jobs:
           if git diff --cached --quiet; then
             exit 0
           fi
-          git commit -m 'Fix Tally Connect deployment package'
+          git commit -m 'Remove old upper Tally Connect UI'
           git push origin HEAD:main
