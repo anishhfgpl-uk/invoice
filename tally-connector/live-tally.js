@@ -1,11 +1,11 @@
 (()=>{
 const RELAY='https://tally-relay-anish.onrender.com',K={url:'tallysync_connector_url',code:'tallysync_office_code',company:'tallysync_selected_company'};
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const esc=v=>String(v??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
 const saved=()=>localStorage.getItem(K.url)||'http://127.0.0.1:9101',code=()=>localStorage.getItem(K.code)||'';
 const selected=()=>{try{return JSON.parse(localStorage.getItem(K.company)||'null')}catch{return null}};
 async function post(xml){const c=code();const u=c?`${RELAY}/api/device/${encodeURIComponent(c)}/xml`:saved().replace(/\/$/,'')+'/tally/xml';let r;try{r=await fetch(u,{method:'POST',headers:{'Content-Type':'text/xml;charset=utf-8'},body:xml,signal:AbortSignal.timeout(40000)})}catch(e){throw Error('Network/relay timeout. Office connector online hai?')}const text=await r.text();if(!r.ok)throw Error(text.slice(0,300)||`HTTP ${r.status}`);if(!text.trim())throw Error('Empty response from Tally');return text}
 const companyTag=()=>{const c=selected();return c?.Name?`<SVCURRENTCOMPANY>${esc(c.Name)}</SVCURRENTCOMPANY>`:''};
-async function collection(name,type,fetches,extra='',useCompany=true){const tag=useCompany?companyTag():'';return post(`<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>${name}</ID></HEADER><BODY><DESC><STATICVARIABLES><SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>${tag}${extra}</STATICVARIABLES><TDL><TDLMESSAGE><COLLECTION NAME="${name}"><TYPE>${type}</TYPE><FETCH>${fetches}</FETCH></COLLECTION></TDL></DESC></BODY></ENVELOPE>`)}
+async function collection(name,type,fetches,extra='',useCompany=true){const tag=useCompany?companyTag():'';return post(`<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>${name}</ID></HEADER><BODY><DESC><STATICVARIABLES><SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>${tag}${extra}</STATICVARIABLES><TDL><TDLMESSAGE><COLLECTION NAME="${name}"><TYPE>${type}</TYPE><FETCH>${fetches}</FETCH></COLLECTION></TDLMESSAGE></TDL></DESC></BODY></ENVELOPE>`)}
 function parse(raw,tags){const d=new DOMParser().parseFromString(raw,'text/xml');if(d.querySelector('parsererror'))throw Error('Invalid XML response');const nodes=[...d.querySelectorAll('LEDGER,STOCKITEM,VOUCHER,COMPANY')];return nodes.map(n=>{const o={};tags.forEach(t=>{const q=n.querySelector(t)||n.querySelector(t.toUpperCase());o[t]=(q?.textContent||n.getAttribute(t)||n.getAttribute(t.toUpperCase())||'').trim()});return o}).filter(o=>Object.values(o).some(Boolean))}
 function isOur(n){return !!(n&&((n.id||'').startsWith('ts-')||n.closest?.('#ts-connect')||n.closest?.('#anish-fixed-brand')))}
 function text(n){return(n?.innerText||n?.textContent||n?.value||'').replace(/\s+/g,' ').trim()}
@@ -20,27 +20,30 @@ function hideOldTallyUI(){
     }
   });
   document.querySelectorAll('body *').forEach(el=>{
-    if(isOur(el)||el.children.length>3)return;
+    if(isOur(el))return;
     const t=text(el).toLowerCase();
     if(t==='tally connect'||t==='connect tally'||t==='connect to tally')el.style.setProperty('display','none','important');
   });
 }
 function brand(){
-  const old=document.getElementById('anish-fixed-brand');
-  if(old)return;
-  const b=document.createElement('div');b.id='anish-fixed-brand';b.textContent='ANISH TECHNOLOGIES';
-  b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99998;height:46px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;background:linear-gradient(135deg,#0b1220,#172554);color:#fff;font:800 18px/1 Arial,sans-serif;letter-spacing:2px;border-bottom:2px solid #2563eb;box-shadow:0 4px 18px #0003;pointer-events:none';
-  document.body.appendChild(b);document.documentElement.style.scrollPaddingTop='54px';document.body.style.paddingTop='46px';
+  let b=document.getElementById('anish-fixed-brand');
+  if(!b){
+    b=document.createElement('div');b.id='anish-fixed-brand';b.textContent='ANISH TECHNOLOGIES';
+    b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99998;height:46px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;background:linear-gradient(135deg,#0b1220,#172554);color:#fff;font:800 18px/46px Arial,sans-serif;letter-spacing:2px;border-bottom:2px solid #2563eb;box-shadow:0 4px 18px #0003;pointer-events:none;white-space:nowrap;overflow:hidden';
+    document.body.appendChild(b);
+  }
+  document.documentElement.style.scrollPaddingTop='54px';document.body.style.paddingTop='46px';
   const cleanBrand=()=>{
+    const target='ANISH TECHNOLOGIES';
     document.querySelectorAll('body *').forEach(el=>{
       if(el===b||el.closest?.('#anish-fixed-brand')||el.id==='ts-connect')return;
-      if(el.children.length>3)return;
-      if(text(el).replace(/\s+/g,' ').trim().toUpperCase()==='ANISH TECHNOLOGIES')el.style.setProperty('display','none','important');
+      const t=text(el).replace(/\s+/g,' ').trim().toUpperCase();
+      if(t===target)el.style.setProperty('display','none','important');
     });
   };
   cleanBrand();
+  new MutationObserver(cleanBrand).observe(document.body,{childList:true,subtree:true,characterData:true});
 }
-// The old full-screen "Live Tally" dashboard has been intentionally removed.
 function liveUI(){}
 let DATA={ledgers:[],stock:[],sales:[],purchase:[]};
 async function loadLiveData(){try{if(!selected())throw Error('Company select nahi hui');const [l,s,v]=await Promise.all([collection('Live Ledgers','Ledger','Name,Parent,ClosingBalance,OpeningBalance,PhoneNumber,Email,GSTIN,Address'),collection('Live Stock','StockItem','Name,Parent,ClosingBalance,ClosingValue,BaseUnits,Rate'),collection('Live Vouchers','Voucher','Date,VoucherNumber,VoucherTypeName,PartyLedgerName,Amount,Reference,Narration')]);DATA.ledgers=parse(l,['Name','Parent','ClosingBalance','OpeningBalance','PhoneNumber','Email','GSTIN','Address']);DATA.stock=parse(s,['Name','Parent','ClosingBalance','ClosingValue','BaseUnits','Rate']);const all=parse(v,['Date','VoucherNumber','VoucherTypeName','PartyLedgerName','Amount','Reference','Narration']);DATA.sales=all.filter(x=>/sales/i.test(x.VoucherTypeName||''));DATA.purchase=all.filter(x=>/purchase/i.test(x.VoucherTypeName||''));window.__tallyLiveData=DATA;window.dispatchEvent(new CustomEvent('tallysync:data',{detail:{company:selected(),data:DATA}}));return DATA}catch(e){window.dispatchEvent(new CustomEvent('tallysync:error',{detail:e.message}));throw e}}
