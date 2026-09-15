@@ -11,15 +11,20 @@ if errorlevel 1 (
 set CONNECTOR_PORT=9101
 set TALLY_URL=http://127.0.0.1:9000
 set RELAY_URL=https://tally-relay-anish.onrender.com
-if "%DEVICE_CODE%"=="" (
+if "%OFFICE_CODE%"=="" (
   echo.
   echo ===============================================
   echo TallySync Pro - Remote Office Connector
   echo ===============================================
   echo.
-  echo Enter the Office Code shown on the TallySync website.
-  echo Leave blank for direct LAN/IP mode only.
-  set /p DEVICE_CODE=Office Code: 
+  echo Enter the same Office Code you use on the website.
+  echo This keeps the Tally computer paired securely with your account.
+  set /p OFFICE_CODE=Office Code: 
+)
+if "%OFFICE_CODE%"=="" (
+  echo Office Code is required.
+  pause
+  exit /b 1
 )
 node tally-connector.mjs
 pause
