@@ -3,6 +3,8 @@ import http from 'node:http';
 const TALLY_URL = process.env.TALLY_URL || 'http://127.0.0.1:9000';
 const PORT = Number(process.env.CONNECTOR_PORT || 9101);
 const HOST = process.env.CONNECTOR_HOST || '0.0.0.0';
+const RELAY_URL = (process.env.RELAY_URL || '').replace(/\/$/, '');
+const DEVICE_CODE = (process.env.DEVICE_CODE || '').trim().toUpperCase();
 
 const ALLOWED_ORIGINS = new Set([
   'https://anish-tech.online',
@@ -37,9 +39,49 @@ async function tallyPost(xml) {
     method: 'POST',
     headers: { 'Content-Type': 'text/xml' },
     body: xml,
-    signal: AbortSignal.timeout(30000)
+    signal: AbortSignal.timeout(45000)
   });
   return await response.text();
+}
+
+let relaySocket = null;
+let relayCode = DEVICE_CODE;
+const relayWaiters = new Map();
+
+function connectRelay() {
+  if (!RELAY_URL) return;
+  if (!relayCode) {
+    console.log('RELAY_URL is set but DEVICE_CODE is empty. Set DEVICE_CODE in the launcher.');
+    return;
+  }
+  try {
+    const wsUrl = RELAY_URL.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:') + `/agent?code=${encodeURIComponent(relayCode)}`;
+    const WS = globalThis.WebSocket;
+    if (!WS) throw new Error('This Node.js version does not provide WebSocket support');
+    const ws = new WS(wsUrl);
+    relaySocket = ws;
+    ws.addEventListener('open', () => console.log(`Remote relay connected. Office code: ${relayCode}`));
+    ws.addEventListener('message', async event => {
+      try {
+        const msg = JSON.parse(String(event.data));
+        if (msg.type !== 'tally_xml' || !msg.id) return;
+        try {
+          const xml = await tallyPost(msg.xml || '');
+          ws.send(JSON.stringify({ type: 'tally_result', id: msg.id, xml }));
+        } catch (e) {
+          ws.send(JSON.stringify({ type: 'tally_result', id: msg.id, error: String(e?.message || e) }));
+        }
+      } catch (_) {}
+    });
+    ws.addEventListener('close', () => {
+      relaySocket = null;
+      setTimeout(connectRelay, 5000);
+    });
+    ws.addEventListener('error', () => {});
+  } catch (e) {
+    console.log(`Relay connection error: ${e.message}`);
+    setTimeout(connectRelay, 5000);
+  }
 }
 
 const server = http.createServer(async (req, res) => {
@@ -66,7 +108,10 @@ const server = http.createServer(async (req, res) => {
         ok: true,
         service: 'tally-connector',
         tallyUrl: TALLY_URL,
-        tally
+        tally,
+        remoteRelay: !!RELAY_URL,
+        officeCode: relayCode || null,
+        relayConnected: !!relaySocket
       }), origin);
     }
 
@@ -88,14 +133,16 @@ const server = http.createServer(async (req, res) => {
 
     return send(res, 404, JSON.stringify({ ok: false, error: 'Not found' }), origin);
   } catch (error) {
-    return send(res, 502, JSON.stringify({
-      ok: false,
-      error: String(error?.message || error)
-    }), origin);
+    return send(res, 502, JSON.stringify({ ok: false, error: String(error?.message || error) }), origin);
   }
 });
 
 server.listen(PORT, HOST, () => {
   console.log(`Tally connector running on http://${HOST}:${PORT}`);
   console.log(`Tally target: ${TALLY_URL}`);
+  if (RELAY_URL) {
+    console.log(`Remote relay: ${RELAY_URL}`);
+    console.log(`Office code: ${relayCode || '(not configured)'}`);
+    connectRelay();
+  }
 });
