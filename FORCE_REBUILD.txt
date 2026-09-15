@@ -1,0 +1,1 @@
+Force rebuild of the generated Invoice/TallySync app.
