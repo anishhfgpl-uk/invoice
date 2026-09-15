@@ -20,7 +20,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Extract app
+      - name: Extract clean app
         shell: bash
         run: |
           set -e
@@ -35,95 +35,50 @@ jobs:
           rm -rf app/node_modules app/dist
           test -f app/index.html
 
-      - name: Add ANISH TECHNOLOGIES branding, Tally connector and company selector
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('app/index.html')
-          s=p.read_text(encoding='utf-8')
-          marker='<!-- TALLYSYNC_IP_CONNECTOR_V2 -->'
-          if marker not in s:
-            bridge=r'''<!-- TALLYSYNC_IP_CONNECTOR_V2 -->
-          <script>
-          (()=>{
-            const KEY='tallysync_connector_url', COMPANY_KEY='tallysync_selected_company', DEFAULT='http://127.0.0.1:9101';
-            const nativeFetch=window.fetch.bind(window);
-            const base=()=>localStorage.getItem(KEY)||DEFAULT;
-            const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-            const xmlEsc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
-            const rewrite=input=>{try{const u=typeof input==='string'?new URL(input,location.href):new URL(input.url);if((u.hostname==='127.0.0.1'||u.hostname==='localhost')&&u.port==='9000'){const b=new URL(base());u.protocol=b.protocol;u.hostname=b.hostname;u.port=b.port;return u.toString()}}catch(_){ }return input};
-            window.fetch=(input,init)=>nativeFetch(rewrite(input),init);
-            window.TallySyncConnector={get url(){return base()},set url(v){localStorage.setItem(KEY,(v||DEFAULT).trim().replace(/\/$/,''))},get company(){try{return JSON.parse(localStorage.getItem(COMPANY_KEY)||'null')}catch(_){return null}}};
-            async function postTally(xml){const u=base().replace(/\/$/,'')+'/tally/xml';const r=await nativeFetch(u,{method:'POST',headers:{'Content-Type':'text/xml;charset=utf-8'},body:xml});if(!r.ok)throw new Error('Tally request failed: HTTP '+r.status);return await r.text()}
-            function val(node,names){for(const name of names){const a=node.getAttribute&&node.getAttribute(name);if(a)return a.trim();const q=node.querySelector&&node.querySelector(name);if(q&&q.textContent.trim())return q.textContent.trim()}return ''}
-            async function fetchCompanies(status,select){
-              status.textContent='⏳ Fetching companies from Tally...';
-              const xml=`<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>Company Collection</ID></HEADER><BODY><DESC><STATICVARIABLES><SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT></STATICVARIABLES><TDL><TDLMESSAGE><COLLECTION NAME="Company Collection"><TYPE>Company</TYPE><FETCH>Name,Guid,MailingName,StateName,PinCode,PhoneNumber,Email,GSTIN</FETCH></COLLECTION></TDLMESSAGE></TDL></DESC></BODY></ENVELOPE>`;
-              try{
-                const raw=await postTally(xml); const doc=new DOMParser().parseFromString(raw,'text/xml');
-                if(doc.querySelector('parsererror'))throw new Error('Invalid XML response from Tally');
-                const nodes=[...doc.querySelectorAll('COMPANY,Company')];
-                const seen=new Set(); const companies=[];
-                for(const n of nodes){const name=val(n,['NAME','Name']); if(!name||seen.has(name.toLowerCase()))continue; seen.add(name.toLowerCase()); companies.push({name,guid:val(n,['GUID','Guid']),mailingName:val(n,['MAILINGNAME','MailingName']),state:val(n,['STATENAME','StateName']),pin:val(n,['PINCODE','PinCode']),phone:val(n,['PHONENUMBER','PhoneNumber']),email:val(n,['EMAIL','Email']),gstin:val(n,['GSTIN','Gstin'])});}
-                if(!companies.length){
-                  const names=[...doc.querySelectorAll('NAME,Name')].map(n=>n.textContent.trim()).filter(Boolean); for(const name of names){if(!seen.has(name.toLowerCase())){seen.add(name.toLowerCase());companies.push({name});}}
-                }
-                select.innerHTML='<option value="">— Select Tally Company —</option>'+companies.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join('');
-                select._companies=companies;
-                status.textContent=companies.length?`✅ ${companies.length} company${companies.length===1?'':'ies'} found in Tally`:'⚠️ Tally responded, but no company records were found';
-                select.disabled=!companies.length;
-              }catch(e){status.textContent='❌ '+e.message;select.innerHTML='<option value="">— Fetch failed —</option>';select.disabled=true}
-            }
-            function brand(){
-              if(document.getElementById('anish-technologies-brand-live'))return;
-              const x=document.createElement('div');x.id='anish-technologies-brand-live';
-              x.innerHTML='<div class="at-name">ANISH TECHNOLOGIES</div><div class="at-sub">TallySync Pro • Digital Solutions</div>';
-              x.style.cssText='width:100%;box-sizing:border-box;background:linear-gradient(135deg,#0b1220,#172554);color:#fff;text-align:center;padding:16px 12px 14px;font-family:Arial,Helvetica,sans-serif;border-bottom:3px solid #2563eb;box-shadow:0 2px 10px rgba(0,0,0,.18);position:relative;z-index:2147483000';
-              const st=document.createElement('style');st.textContent='#anish-technologies-brand-live .at-name{font-size:clamp(24px,4vw,38px);font-weight:900;letter-spacing:3px;line-height:1.1}#anish-technologies-brand-live .at-sub{font-size:12px;font-weight:600;letter-spacing:2px;opacity:.82;margin-top:6px;text-transform:uppercase}';document.head.appendChild(st);document.body.insertBefore(x,document.body.firstChild);
-            }
-            function panel(){
-              brand();
-              if(document.getElementById('ts-ip-panel'))return;
-              const x=document.createElement('div');x.id='ts-ip-panel';x.style.cssText='position:fixed;right:18px;bottom:18px;z-index:2147483647;font-family:Arial,sans-serif';
-              x.innerHTML=`<button id="ts-open" style="border:0;border-radius:10px;padding:10px 14px;background:#111827;color:#fff;cursor:pointer">🔗 Connect Tally</button><div id="ts-box" style="display:none;margin-top:8px;width:390px;max-width:calc(100vw - 36px);background:#fff;border:1px solid #ddd;border-radius:12px;padding:14px;box-shadow:0 8px 30px #0003;color:#111"><b>Connect Tally Computer</b><div style="font-size:12px;margin:7px 0 10px;color:#555">Enter the reachable IP/URL of the computer running TallyPrime + connector.</div><input id="ts-url" style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #ccc;border-radius:8px" placeholder="http://192.168.1.10:9101"><div style="display:flex;gap:8px;margin-top:9px"><button id="ts-test" style="flex:1;padding:9px;border:0;border-radius:8px">Test</button><button id="ts-save" style="flex:1;padding:9px;border:0;border-radius:8px">Save</button></div><div id="ts-status" style="font-size:12px;margin-top:9px"></div><hr style="border:0;border-top:1px solid #eee;margin:12px 0"><div style="font-size:12px;font-weight:700;margin-bottom:6px">Tally Company</div><div style="display:flex;gap:8px"><button id="ts-fetch-companies" style="flex:1;padding:9px;border:0;border-radius:8px;background:#2563eb;color:#fff">Fetch Companies</button><select id="ts-company" disabled style="flex:1;min-width:0;padding:9px;border:1px solid #ccc;border-radius:8px"><option>— Connect Tally first —</option></select></div><div id="ts-company-info" style="font-size:12px;margin-top:8px;color:#555"></div><a href="/invoice/tally-connector.zip" download style="display:block;margin-top:10px;font-size:12px">Download connector</a></div>`;
-              document.body.appendChild(x);const inp=x.querySelector('#ts-url'),st=x.querySelector('#ts-status'),sel=x.querySelector('#ts-company'),info=x.querySelector('#ts-company-info');inp.value=base();
-              x.querySelector('#ts-open').onclick=()=>{const b=x.querySelector('#ts-box');b.style.display=b.style.display==='none'?'block':'none'};
-              x.querySelector('#ts-save').onclick=()=>{window.TallySyncConnector.url=inp.value;st.textContent='✅ Connector URL saved'};
-              x.querySelector('#ts-test').onclick=async()=>{try{window.TallySyncConnector.url=inp.value;const r=await nativeFetch(base()+'/health');const d=await r.json();st.textContent=d.tally?'✅ Connector + Tally connected':'⚠️ Connector found, Tally not reachable'}catch(e){st.textContent='❌ '+e.message}};
-              x.querySelector('#ts-fetch-companies').onclick=()=>fetchCompanies(st,sel);
-              sel.onchange=()=>{const c=sel._companies?.[Number(sel.value)];if(!c)return;localStorage.setItem(COMPANY_KEY,JSON.stringify(c));window.TallySyncConnector.company=c;info.innerHTML=`<b>Selected:</b> ${esc(c.name)}${c.gstin?' · GSTIN: '+esc(c.gstin):''}${c.state?' · '+esc(c.state):''}`;st.textContent='✅ Company selected: '+c.name};
-              try{const c=JSON.parse(localStorage.getItem(COMPANY_KEY)||'null');if(c)info.innerHTML=`<b>Selected:</b> ${esc(c.name)}${c.gstin?' · GSTIN: '+esc(c.gstin):''}`}catch(_){}
-            }
-            if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',panel);else panel();
-          })();
-          </script>
-          '''
-            s=s.replace('</head>',bridge+'\n</head>')
-          p.write_text(s,encoding='utf-8')
-          PY
-
-      - name: Add connector files
+      - name: Inject ANISH TECHNOLOGIES live Tally dashboard
         shell: bash
         run: |
           set -e
           mkdir -p app/public/tally-connector
           cp tally-connector/tally-connector.mjs app/public/tally-connector/
           cp tally-connector/start-connector.bat app/public/tally-connector/
+          cp tally-connector/live-tally.js app/public/tally-connector/
           cat > app/public/tally-connector/README.txt <<'EOF'
-          TallySync Pro connector
-          Run start-connector.bat on the computer where TallyPrime is installed.
-          Connector port: 9101. TallyPrime port: 9000.
-          Then enter that computer's reachable IP/URL in Connect Tally on the website.
+          TallySync Pro - Office Connector
+          1. Install Node.js LTS on the computer where TallyPrime is installed.
+          2. Make sure TallyPrime HTTP Server is enabled on port 9000.
+          3. Run start-connector.bat.
+          4. For remote office access, enter the Office Code in the website.
+          5. The Tally computer must remain ON with TallyPrime and connector running.
+          Direct LAN mode can also use http://COMPUTER-IP:9101.
           EOF
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/index.html')
+          s=p.read_text(encoding='utf-8')
+          if 'TALLYSYNC_LIVE_DASHBOARD_V1' not in s:
+            s=s.replace('</head>', '<!-- TALLYSYNC_LIVE_DASHBOARD_V1 --><script src="./tally-connector/live-tally.js"></script></head>')
+          p.write_text(s,encoding='utf-8')
+          PY
+          cat > app/anish-brand.css <<'EOF'
+          body::before{content:'ANISH TECHNOLOGIES  •  TallySync Pro  •  Digital Solutions';display:block;box-sizing:border-box;width:100%;padding:14px 18px;background:linear-gradient(135deg,#0b1220,#172554);color:#fff;text-align:center;font:800 20px/1.2 Arial,sans-serif;letter-spacing:2px;border-bottom:3px solid #2563eb;position:relative;z-index:2147483000}
+          EOF
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/index.html'); s=p.read_text(encoding='utf-8')
+          if 'anish-brand.css' not in s: s=s.replace('</head>','<link rel="stylesheet" href="./anish-brand.css"></head>')
+          p.write_text(s,encoding='utf-8')
+          PY
 
       - name: Build and verify
         shell: bash
         run: |
+          set -e
           cd app
           npm install
           npm run build -- --base=./
           test -f dist/index.html
+          grep -q 'live-tally.js' dist/index.html
 
       - name: Package connector download
         shell: bash
@@ -148,6 +103,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
           git diff --cached --quiet && exit 0
-          git commit -m "Complete invoice Tally connector branding and company selector"
+          git commit -m "Add live Tally dashboard and remote office connector"
           git pull --rebase origin main
           git push origin HEAD:main
