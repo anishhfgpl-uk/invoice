@@ -1,108 +1,61 @@
 name: Prepare Invoice App
-
 on:
   push:
     branches: [main]
-    paths:
-      - '.github/workflows/prepare-invoice.yml'
-      - 'tally-connector/**'
+    paths: ['.github/workflows/prepare-invoice.yml','tally-connector/**','relay/**']
   workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
   prepare:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Extract clean app
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Prepare
         shell: bash
         run: |
           set -e
           rm -rf app prepared.zip
-          mkdir -p app
+          mkdir app
           unzip -q "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip" -d app
-          if [ -d app/tallysync-pro ]; then
-            shopt -s dotglob
-            mv app/tallysync-pro/* app/
-            rmdir app/tallysync-pro
-          fi
+          if [ -d app/tallysync-pro ]; then shopt -s dotglob; mv app/tallysync-pro/* app/; rmdir app/tallysync-pro; fi
           rm -rf app/node_modules app/dist
-          test -f app/index.html
-
-      - name: Inject ANISH TECHNOLOGIES live Tally dashboard
-        shell: bash
-        run: |
-          set -e
           mkdir -p app/public/tally-connector
-          cp tally-connector/tally-connector.mjs app/public/tally-connector/
-          cp tally-connector/start-connector.bat app/public/tally-connector/
-          cp tally-connector/live-tally.js app/public/tally-connector/
+          cp tally-connector/tally-connector.mjs tally-connector/start-connector.bat tally-connector/live-tally.js app/public/tally-connector/
           cat > app/public/tally-connector/README.txt <<'EOF'
-          TallySync Pro - Office Connector
-          1. Install Node.js LTS on the computer where TallyPrime is installed.
-          2. Make sure TallyPrime HTTP Server is enabled on port 9000.
-          3. Run start-connector.bat.
-          4. For remote office access, enter the Office Code in the website.
-          5. The Tally computer must remain ON with TallyPrime and connector running.
-          Direct LAN mode can also use http://COMPUTER-IP:9101.
-          EOF
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('app/index.html')
-          s=p.read_text(encoding='utf-8')
-          if 'TALLYSYNC_LIVE_DASHBOARD_V1' not in s:
-            s=s.replace('</head>', '<!-- TALLYSYNC_LIVE_DASHBOARD_V1 --><script src="./tally-connector/live-tally.js"></script></head>')
-          p.write_text(s,encoding='utf-8')
-          PY
-          cat > app/anish-brand.css <<'EOF'
-          body::before{content:'ANISH TECHNOLOGIES  •  TallySync Pro  •  Digital Solutions';display:block;box-sizing:border-box;width:100%;padding:14px 18px;background:linear-gradient(135deg,#0b1220,#172554);color:#fff;text-align:center;font:800 20px/1.2 Arial,sans-serif;letter-spacing:2px;border-bottom:3px solid #2563eb;position:relative;z-index:2147483000}
-          EOF
+TallySync Pro Remote Connector
+Install Node.js LTS on the TallyPrime computer.
+Enable TallyPrime HTTP Server on port 9000.
+Run start-connector.bat and enter the Office Code shown/entered on the website.
+Keep TallyPrime and the connector running while using live data.
+Direct LAN/IP mode is also supported.
+EOF
           python3 - <<'PY'
           from pathlib import Path
           p=Path('app/index.html'); s=p.read_text(encoding='utf-8')
-          if 'anish-brand.css' not in s: s=s.replace('</head>','<link rel="stylesheet" href="./anish-brand.css"></head>')
+          if 'TALLYSYNC_REMOTE_LIVE_V3' not in s:
+            inject='''<!-- TALLYSYNC_REMOTE_LIVE_V3 --><script src="./tally-connector/live-tally.js"></script><style id="anish-brand-live">body::before{content:"ANISH TECHNOLOGIES  •  TallySync Pro  •  Digital Solutions";display:block;box-sizing:border-box;width:100%;padding:14px 18px;background:linear-gradient(135deg,#0b1220,#172554);color:#fff;text-align:center;font:800 20px/1.2 Arial,sans-serif;letter-spacing:2px;border-bottom:3px solid #2563eb;position:relative;z-index:2147483000}</style>'''
+            s=s.replace('</head>',inject+'</head>')
           p.write_text(s,encoding='utf-8')
           PY
-
-      - name: Build and verify
-        shell: bash
-        run: |
-          set -e
           cd app
           npm install
           npm run build -- --base=./
           test -f dist/index.html
           grep -q 'live-tally.js' dist/index.html
-
-      - name: Package connector download
-        shell: bash
-        run: |
-          cd app/public
-          zip -q -r tally-connector.zip tally-connector
-
-      - name: Repack source ZIP without build artifacts
-        shell: bash
-        run: |
-          set -e
+          cd public && zip -q -r tally-connector.zip tally-connector
+          cd ../..
           rm -rf app/node_modules app/dist
-          cd app
-          zip -q -r ../prepared.zip .
-          cd ..
+          cd app && zip -q -r ../prepared.zip . && cd ..
           mv prepared.zip "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
-
       - name: Commit patched ZIP
         shell: bash
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
           git diff --cached --quiet && exit 0
-          git commit -m "Add live Tally dashboard and remote office connector"
+          git commit -m "Build remote Tally integration into invoice app"
           git pull --rebase origin main
           git push origin HEAD:main
