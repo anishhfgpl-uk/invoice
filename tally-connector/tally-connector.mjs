@@ -2,6 +2,7 @@ import http from 'node:http';
 
 const TALLY_URL = process.env.TALLY_URL || 'http://127.0.0.1:9000';
 const PORT = Number(process.env.CONNECTOR_PORT || 9101);
+const HOST = process.env.CONNECTOR_HOST || '0.0.0.0';
 
 const ALLOWED_ORIGINS = new Set([
   'https://anish-tech.online',
@@ -94,7 +95,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`Tally connector running on http://127.0.0.1:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`Tally connector running on http://${HOST}:${PORT}`);
   console.log(`Tally target: ${TALLY_URL}`);
 });
