@@ -32,11 +32,10 @@ jobs:
             mv app/tallysync-pro/* app/
             rmdir app/tallysync-pro
           fi
-          # Never reuse bundled dependencies/build output from the uploaded ZIP.
           rm -rf app/node_modules app/dist
           test -f app/index.html
 
-      - name: Add Tally computer IP connector UI
+      - name: Add Tally computer IP connector and company selector UI
         shell: bash
         run: |
           python3 - <<'PY'
@@ -47,13 +46,36 @@ jobs:
             bridge=r'''<!-- TALLYSYNC_IP_CONNECTOR -->
           <script>
           (()=>{
-            const KEY='tallysync_connector_url',DEFAULT='http://127.0.0.1:9101';
+            const KEY='tallysync_connector_url', COMPANY_KEY='tallysync_selected_company', DEFAULT='http://127.0.0.1:9101';
             const nativeFetch=window.fetch.bind(window);
             const base=()=>localStorage.getItem(KEY)||DEFAULT;
+            const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            const xmlEsc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
             const rewrite=input=>{try{const u=typeof input==='string'?new URL(input,location.href):new URL(input.url);if((u.hostname==='127.0.0.1'||u.hostname==='localhost')&&u.port==='9000'){const b=new URL(base());u.protocol=b.protocol;u.hostname=b.hostname;u.port=b.port;return u.toString()}}catch(_){ }return input};
             window.fetch=(input,init)=>nativeFetch(rewrite(input),init);
-            window.TallySyncConnector={get url(){return base()},set url(v){localStorage.setItem(KEY,(v||DEFAULT).trim().replace(/\/$/,''))}};
-            function panel(){if(document.getElementById('ts-ip-panel'))return;const x=document.createElement('div');x.id='ts-ip-panel';x.style.cssText='position:fixed;right:18px;bottom:18px;z-index:2147483647;font-family:Arial,sans-serif';x.innerHTML=`<button id="ts-open" style="border:0;border-radius:10px;padding:10px 14px;background:#111827;color:#fff;cursor:pointer">🔗 Connect Tally</button><div id="ts-box" style="display:none;margin-top:8px;width:340px;background:#fff;border:1px solid #ddd;border-radius:12px;padding:14px;box-shadow:0 8px 30px #0003;color:#111"><b>Connect Tally Computer</b><div style="font-size:12px;margin:7px 0 10px;color:#555">Enter the IP of the computer running TallyPrime + connector.</div><input id="ts-url" style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #ccc;border-radius:8px" placeholder="http://192.168.1.10:9101"><div style="display:flex;gap:8px;margin-top:9px"><button id="ts-test" style="flex:1;padding:9px;border:0;border-radius:8px">Test</button><button id="ts-save" style="flex:1;padding:9px;border:0;border-radius:8px">Save</button></div><div id="ts-status" style="font-size:12px;margin-top:9px"></div><a href="/invoice/tally-connector.zip" download style="display:block;margin-top:10px;font-size:12px">Download connector</a></div>`;document.body.appendChild(x);const inp=x.querySelector('#ts-url'),st=x.querySelector('#ts-status');inp.value=base();x.querySelector('#ts-open').onclick=()=>{const b=x.querySelector('#ts-box');b.style.display=b.style.display==='none'?'block':'none'};x.querySelector('#ts-save').onclick=()=>{window.TallySyncConnector.url=inp.value;st.textContent='✅ Saved'};x.querySelector('#ts-test').onclick=async()=>{try{const u=inp.value.trim().replace(/\/$/,'');const r=await nativeFetch(u+'/health');const d=await r.json();st.textContent=d.tally?'✅ Connector + Tally connected':'⚠️ Connector found, Tally not reachable'}catch(e){st.textContent='❌ '+e.message}}}
+            window.TallySyncConnector={get url(){return base()},set url(v){localStorage.setItem(KEY,(v||DEFAULT).trim().replace(/\/$/,''))},get company(){try{return JSON.parse(localStorage.getItem(COMPANY_KEY)||'null')}catch(_){return null}}};
+            async function postTally(xml){const u=base().replace(/\/$/,'')+'/tally/xml';const r=await nativeFetch(u,{method:'POST',headers:{'Content-Type':'text/xml;charset=utf-8'},body:xml});if(!r.ok)throw new Error('Tally request failed: HTTP '+r.status);return await r.text()}
+            function text(node,name){const n=node.querySelector(name);return n?n.textContent.trim():''}
+            async function fetchCompanies(status,select){
+              status.textContent='⏳ Fetching companies from Tally...';
+              const xml=`<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>Company Collection</ID></HEADER><BODY><DESC><STATICVARIABLES><SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT></STATICVARIABLES><TDL><TDLMESSAGE><COLLECTION NAME="Company Collection"><TYPE>Company</TYPE><FETCH>Name,Guid,MailingName,StateName,PinCode,PhoneNumber,Email,GSTIN</FETCH></COLLECTION></TDLMESSAGE></TDL></DESC></BODY></ENVELOPE>`;
+              try{
+                const raw=await postTally(xml); const doc=new DOMParser().parseFromString(raw,'text/xml');
+                if(doc.querySelector('parsererror'))throw new Error('Invalid XML response from Tally');
+                const nodes=[...doc.querySelectorAll('COMPANY')];
+                const seen=new Set(); const companies=[];
+                for(const n of nodes){const name=text(n,'NAME')||text(n,'Name'); if(!name||seen.has(name.toLowerCase()))continue; seen.add(name.toLowerCase()); companies.push({name,guid:text(n,'GUID')||text(n,'Guid'),mailingName:text(n,'MAILINGNAME')||text(n,'MailingName'),state:text(n,'STATENAME')||text(n,'StateName'),pin:text(n,'PINCODE')||text(n,'PinCode'),phone:text(n,'PHONENUMBER')||text(n,'PhoneNumber'),email:text(n,'EMAIL')||text(n,'Email'),gstin:text(n,'GSTIN')||text(n,'Gstin')});}
+                if(!companies.length){
+                  const names=[...doc.querySelectorAll('NAME')].map(n=>n.textContent.trim()).filter(Boolean); for(const name of names){if(!seen.has(name.toLowerCase())){seen.add(name.toLowerCase());companies.push({name});}}
+                }
+                select.innerHTML='<option value="">— Select Tally Company —</option>'+companies.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join('');
+                select._companies=companies;
+                status.textContent=companies.length?`✅ ${companies.length} company${companies.length===1?'':'ies'} found in Tally`:'⚠️ Tally responded, but no company records were found';
+                select.disabled=!companies.length;
+              }catch(e){status.textContent='❌ '+e.message;select.innerHTML='<option value="">— Fetch failed —</option>';select.disabled=true}
+            }
+            function panel(){if(document.getElementById('ts-ip-panel'))return;const x=document.createElement('div');x.id='ts-ip-panel';x.style.cssText='position:fixed;right:18px;bottom:18px;z-index:2147483647;font-family:Arial,sans-serif';x.innerHTML=`<button id="ts-open" style="border:0;border-radius:10px;padding:10px 14px;background:#111827;color:#fff;cursor:pointer">🔗 Connect Tally</button><div id="ts-box" style="display:none;margin-top:8px;width:370px;max-width:calc(100vw - 36px);background:#fff;border:1px solid #ddd;border-radius:12px;padding:14px;box-shadow:0 8px 30px #0003;color:#111"><b>Connect Tally Computer</b><div style="font-size:12px;margin:7px 0 10px;color:#555">Enter the IP/URL of the computer running TallyPrime + connector.</div><input id="ts-url" style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #ccc;border-radius:8px" placeholder="http://192.168.1.10:9101"><div style="display:flex;gap:8px;margin-top:9px"><button id="ts-test" style="flex:1;padding:9px;border:0;border-radius:8px">Test</button><button id="ts-save" style="flex:1;padding:9px;border:0;border-radius:8px">Save</button></div><div id="ts-status" style="font-size:12px;margin-top:9px"></div><hr style="border:0;border-top:1px solid #eee;margin:12px 0"><div style="font-size:12px;font-weight:700;margin-bottom:6px">Tally Company</div><div style="display:flex;gap:8px"><button id="ts-fetch-companies" style="flex:1;padding:9px;border:0;border-radius:8px;background:#2563eb;color:#fff">Fetch Companies</button><select id="ts-company" disabled style="flex:1;min-width:0;padding:9px;border:1px solid #ccc;border-radius:8px"><option>— Connect Tally first —</option></select></div><div id="ts-company-info" style="font-size:12px;margin-top:8px;color:#555"></div><a href="/invoice/tally-connector.zip" download style="display:block;margin-top:10px;font-size:12px">Download connector</a></div>`;document.body.appendChild(x);const inp=x.querySelector('#ts-url'),st=x.querySelector('#ts-status'),sel=x.querySelector('#ts-company'),info=x.querySelector('#ts-company-info');inp.value=base();x.querySelector('#ts-open').onclick=()=>{const b=x.querySelector('#ts-box');b.style.display=b.style.display==='none'?'block':'none'};x.querySelector('#ts-save').onclick=()=>{window.TallySyncConnector.url=inp.value;st.textContent='✅ Connector URL saved'};x.querySelector('#ts-test').onclick=async()=>{try{window.TallySyncConnector.url=inp.value;const u=base();const r=await nativeFetch(u+'/health');const d=await r.json();st.textContent=d.tally?'✅ Connector + Tally connected':'⚠️ Connector found, Tally not reachable'}catch(e){st.textContent='❌ '+e.message}};x.querySelector('#ts-fetch-companies').onclick=()=>fetchCompanies(st,sel);sel.onchange=()=>{const c=sel._companies?.[Number(sel.value)];if(!c)return;localStorage.setItem(COMPANY_KEY,JSON.stringify(c));window.TallySyncConnector.company=c;info.innerHTML=`<b>Selected:</b> ${esc(c.name)}${c.gstin?' · GSTIN: '+esc(c.gstin):''}${c.state?' · '+esc(c.state):''}`;st.textContent='✅ Company selected: '+c.name};
+              try{const c=JSON.parse(localStorage.getItem(COMPANY_KEY)||'null');if(c){info.innerHTML=`<b>Selected:</b> ${esc(c.name)}${c.gstin?' · GSTIN: '+esc(c.gstin):''}`}}catch(_){}}
             if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',panel);else panel();
           })();
           </script>
@@ -72,7 +94,7 @@ jobs:
           TallySync Pro connector
           Run start-connector.bat on the computer where TallyPrime is installed.
           Connector port: 9101. TallyPrime port: 9000.
-          Then enter that computer's LAN IP in Connect Tally on the website.
+          Then enter that computer's reachable IP/URL in Connect Tally on the website.
           EOF
 
       - name: Build and verify
@@ -80,7 +102,7 @@ jobs:
         run: |
           cd app
           npm install
-          npm run build
+          npm run build -- --base=./
           test -f dist/index.html
 
       - name: Package connector download
@@ -106,6 +128,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
           git diff --cached --quiet && exit 0
-          git commit -m "Fix invoice app package for Render"
+          git commit -m "Add Tally company selection and relative invoice build"
           git pull --rebase origin main
           git push origin HEAD:main
