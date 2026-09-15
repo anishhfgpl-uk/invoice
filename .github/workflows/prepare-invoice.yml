@@ -1,0 +1,156 @@
+name: Prepare Invoice App
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract app
+        shell: bash
+        run: |
+          set -e
+          rm -rf app
+          mkdir -p app
+          unzip -q "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip" -d app
+          if [ -d app/tallysync-pro ]; then
+            shopt -s dotglob
+            tmp=.prepared-app
+            rm -rf "$tmp"
+            mkdir "$tmp"
+            cp -a app/tallysync-pro/. "$tmp"/
+            rm -rf app
+            mv "$tmp" app
+          fi
+          test -f app/index.html
+
+      - name: Add Tally IP connector bridge to the app
+        shell: bash
+        run: |
+          set -e
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/index.html')
+          s = p.read_text(encoding='utf-8')
+          marker = '<!-- TALLYSYNC_IP_CONNECTOR -->'
+          if marker not in s:
+              bridge = r'''<!-- TALLYSYNC_IP_CONNECTOR -->
+          <script>
+          (() => {
+            const KEY = 'tallysync_connector_url';
+            const DEFAULT = 'http://127.0.0.1:9101';
+            const oldFetch = window.fetch.bind(window);
+            const getBase = () => (localStorage.getItem(KEY) || DEFAULT).replace(/\/$/, '');
+            const rewrite = (input) => {
+              try {
+                const u = typeof input === 'string' ? new URL(input, location.href) : new URL(input.url);
+                if (u.hostname === '127.0.0.1' && u.port === '9000' || u.hostname === 'localhost' && u.port === '9000') {
+                  u.protocol = new URL(getBase()).protocol;
+                  u.hostname = new URL(getBase()).hostname;
+                  u.port = new URL(getBase()).port;
+                  return u.toString();
+                }
+              } catch (_) {}
+              return input;
+            };
+            window.fetch = (input, init) => oldFetch(rewrite(input), init);
+            window.TallySyncConnector = {
+              get url(){ return getBase(); },
+              set url(v){ localStorage.setItem(KEY, (v || DEFAULT).trim().replace(/\/$/, '')); },
+              fetch: (path='/health', init={}) => oldFetch(getBase()+path, init)
+            };
+            const makePanel = () => {
+              if (document.getElementById('tallysync-ip-panel')) return;
+              const panel = document.createElement('div');
+              panel.id = 'tallysync-ip-panel';
+              panel.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:2147483647;font-family:Arial,sans-serif';
+              panel.innerHTML = `
+                <button id="ts-connect-open" style="border:0;border-radius:10px;padding:10px 14px;background:#111827;color:#fff;cursor:pointer;box-shadow:0 4px 18px #0003">🔗 Connect Tally</button>
+                <div id="ts-connect-box" style="display:none;margin-top:8px;width:330px;background:#fff;border:1px solid #ddd;border-radius:12px;padding:14px;box-shadow:0 8px 30px #0003;color:#111">
+                  <b>Tally Computer Connection</b>
+                  <div style="font-size:12px;margin:7px 0 10px;color:#555">Enter the IP of the computer where TallyPrime + the Tally connector are running.</div>
+                  <input id="ts-connect-url" style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #ccc;border-radius:8px" placeholder="http://192.168.1.10:9101" />
+                  <div style="display:flex;gap:8px;margin-top:9px">
+                    <button id="ts-test" style="flex:1;padding:9px;border:0;border-radius:8px;cursor:pointer">Test</button>
+                    <button id="ts-save" style="flex:1;padding:9px;border:0;border-radius:8px;cursor:pointer">Save</button>
+                  </div>
+                  <div id="ts-status" style="font-size:12px;margin-top:9px"></div>
+                  <a href="/invoice/tally-connector.zip" download style="display:block;margin-top:10px;font-size:12px">Download Tally connector</a>
+                </div>`;
+              document.body.appendChild(panel);
+              const input = panel.querySelector('#ts-connect-url');
+              input.value = localStorage.getItem(KEY) || DEFAULT;
+              panel.querySelector('#ts-connect-open').onclick = () => {
+                const b=panel.querySelector('#ts-connect-box'); b.style.display=b.style.display==='none'?'block':'none';
+              };
+              panel.querySelector('#ts-save').onclick = () => {
+                window.TallySyncConnector.url = input.value;
+                panel.querySelector('#ts-status').textContent = 'Saved. Tally requests will use this connector.';
+              };
+              panel.querySelector('#ts-test').onclick = async () => {
+                const status=panel.querySelector('#ts-status');
+                try {
+                  const u=input.value.trim().replace(/\/$/,'');
+                  const r=await oldFetch(u+'/health',{mode:'cors'});
+                  const d=await r.json();
+                  status.textContent = d.tally ? '✅ Connector + Tally connected' : '⚠️ Connector found, but Tally is not reachable';
+                } catch(e) { status.textContent='❌ Cannot connect to connector: '+e.message; }
+              };
+            };
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', makePanel); else makePanel();
+          })();
+          </script>
+          '''
+              p.write_text(s.replace('</head>', bridge + '\n</head>'), encoding='utf-8')
+          PY
+
+      - name: Copy connector into deployable app
+        shell: bash
+        run: |
+          mkdir -p app/public/tally-connector
+          cp tally-connector/tally-connector.mjs app/public/tally-connector/
+          cp tally-connector/start-connector.bat app/public/tally-connector/
+          cat > app/public/tally-connector/README.txt <<'EOF'
+          TallySync Pro connector
+
+          1. Install Node.js LTS on the computer where TallyPrime is running.
+          2. Download start-connector.bat and tally-connector.mjs into the same folder.
+          3. Run start-connector.bat and keep the window open.
+          4. In TallySync Pro, open Connect Tally and enter this computer's LAN IP:
+             http://COMPUTER-IP:9101
+          5. Click Test.
+          EOF
+
+      - name: Build
+        shell: bash
+        run: |
+          cd app
+          npm install
+          npm run build
+
+      - name: Package connector download
+        shell: bash
+        run: |
+          cd app/public
+          zip -q -r tally-connector.zip tally-connector
+
+      - name: Commit prepared source for Render
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app
+          git diff --cached --quiet && exit 0
+          git commit -m "Build invoice app with Tally computer IP connector"
+          git push
