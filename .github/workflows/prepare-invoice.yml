@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/prepare-invoice.yml'
+      - 'tally-connector/**'
   workflow_dispatch:
 
 permissions:
@@ -86,10 +87,11 @@ jobs:
           cd app/public
           zip -q -r tally-connector.zip tally-connector
 
-      - name: Repack original ZIP
+      - name: Repack source ZIP without build artifacts
         shell: bash
         run: |
           set -e
+          rm -rf app/node_modules app/dist
           cd app
           zip -q -r ../prepared.zip .
           cd ..
@@ -102,5 +104,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
           git diff --cached --quiet && exit 0
-          git commit -m "Add Tally computer IP connection to invoice app"
-          git push
+          git commit -m "Fix invoice app package for Render"
+          git pull --rebase origin main
+          git push origin HEAD:main
