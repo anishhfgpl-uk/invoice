@@ -32,6 +32,8 @@ jobs:
             mv app/tallysync-pro/* app/
             rmdir app/tallysync-pro
           fi
+          # Never reuse bundled dependencies/build output from the uploaded ZIP.
+          rm -rf app/node_modules app/dist
           test -f app/index.html
 
       - name: Add Tally computer IP connector UI
