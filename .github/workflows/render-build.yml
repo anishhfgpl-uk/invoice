@@ -21,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Build Vite app and prepare Render publish directory
+      - name: Build Vite app for Render
         shell: bash
         run: |
           set -e
@@ -29,18 +29,14 @@ jobs:
           cp -R invoice-1 .render-src
           cat > .render-src/index.html <<'EOF'
           <!doctype html>
-          <html lang="en">
-          <head>
-            <meta charset="UTF-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-            <title>TallySync Pro - Tally Import, Ledger Ageing & GST Invoicing</title>
-            <meta name="description" content="TallySync Pro accounting and GST invoicing application." />
-          </head>
-          <body>
-            <div id="root"></div>
-            <script type="module" src="/src/main.tsx"></script>
-          </body>
-          </html>
+          <html lang="en"><head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>TallySync Pro - Tally Import, Ledger Ageing & GST Invoicing</title>
+          </head><body>
+          <div id="root"></div>
+          <script type="module" src="/src/main.tsx"></script>
+          </body></html>
           EOF
           cd .render-src
           npm ci
@@ -49,43 +45,36 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
-          import shutil, re
+          import shutil
           dist=Path('.render-src/dist')
           out=Path('invoice-1')
           if not dist.exists(): raise SystemExit('Vite dist directory not created')
-          for p in out.iterdir():
-              if p.name == 'src' or p.name == 'public' or p.name in {'package.json','package-lock.json','tsconfig.json','vite.config.ts','README.md','.env.example','.gitignore'}:
-                  continue
-              if p.is_dir(): shutil.rmtree(p)
-              else: p.unlink()
+          keep={'src','public','package.json','package-lock.json','tsconfig.json','vite.config.ts','README.md','.env.example','.gitignore'}
+          for p in list(out.iterdir()):
+              if p.name not in keep:
+                  shutil.rmtree(p) if p.is_dir() else p.unlink()
           for p in dist.iterdir():
               target=out/p.name
-              if p.is_dir(): shutil.copytree(p,target,dirs_exist_ok=True)
-              else: shutil.copy2(p,target)
-
-          css=Path('invoice-1/anish-brand.css')
-          if css.exists(): shutil.copy2(css, out/'anish-brand.css')
-
+              shutil.copytree(p,target,dirs_exist_ok=True) if p.is_dir() else shutil.copy2(p,target)
           live=Path('tally-connector/live-tally.js').read_text(encoding='utf-8')
           fix=Path('tally-connector/company-list-fix.js').read_text(encoding='utf-8')
           html=(out/'index.html').read_text(encoding='utf-8')
-          html=re.sub(r'(?is)<script[^>]*id=["\'](?:anish-tally-connector|anish-company-list-fix|anish-connector-download-ui)["\'][^>]*>.*?</script>\s*','',html)
-          brand='<style id="anish-technologies-persistent-brand">body::before{content:"ANISH TECHNOLOGIES" !important;display:block !important;width:100% !important;box-sizing:border-box !important;background:#0b1220 !important;color:#fff !important;text-align:center !important;padding:16px 12px !important;font-family:Arial,Helvetica,sans-serif !important;font-size:clamp(24px,4vw,38px) !important;font-weight:900 !important;letter-spacing:3px !important;line-height:1.1 !important;border-bottom:3px solid #2563eb !important}</style>'
+          brand='<style>body::before{content:"ANISH TECHNOLOGIES";display:block;box-sizing:border-box;width:100%;padding:16px 12px;background:#0b1220;color:#fff;text-align:center;font:900 30px Arial;letter-spacing:3px;border-bottom:3px solid #2563eb}</style>'
           html=html.replace('</head>',brand+'\n</head>')
-          inject='<script id="anish-tally-connector">\n'+live+'\n</script>\n<script id="anish-company-list-fix">\n'+fix+'\n</script>\n<script>\n(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();\n</script>'
+          inject='<script id="anish-tally-connector">\n'+live+'\n</script>\n<script id="anish-company-list-fix">\n'+fix+'\n</script>'
           html=html.replace('</body>',inject+'\n</body>')
           (out/'index.html').write_text(html,encoding='utf-8')
-          print('Render publish directory prepared:', out)
           PY
           rm -rf .render-src
 
-      - name: Commit Render-ready files
+      - name: Commit Render-ready build
         shell: bash
         run: |
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add invoice-1
-          if git diff --cached --quiet; then echo 'No Render changes.'; exit 0; fi
+          if git diff --cached --quiet; then exit 0; fi
           git commit -m "Build Render-ready TallySync app"
+          git pull --rebase origin main
           git push origin HEAD:main
