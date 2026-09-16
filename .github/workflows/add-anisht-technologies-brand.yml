@@ -29,7 +29,13 @@ jobs:
 
           zpath = Path('tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip')
           js = Path('tally-connector/live-tally.js').read_text(encoding='utf-8')
-          script_marker = 'ANISH_REMOTE_TALLY_CONNECTOR'
+
+          def remove_marker(text, start, end):
+              while start in text and end in text:
+                  a = text.index(start)
+                  b = text.index(end, a) + len(end)
+                  text = text[:a] + text[b:]
+              return text
 
           with zipfile.ZipFile(zpath, 'r') as zin:
               names = zin.namelist()
@@ -38,25 +44,27 @@ jobs:
                   raise SystemExit('index.html not found in invoice package')
               index = zin.read(index_name).decode('utf-8')
 
-              # Remove only our previous injected blocks. Never remove footer/product text.
-              index = re.sub(r'\s*<!-- ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->.*?<!-- /ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->\s*', '\n', index, flags=re.I | re.S)
+              index = remove_marker(index, '<!-- ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->', '<!-- /ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->')
+              index = remove_marker(index, '<!-- ANISH_REMOTE_TALLY_CONNECTOR -->', '<!-- /ANISH_REMOTE_TALLY_CONNECTOR -->')
               index = re.sub(r'<style[^>]*id=["\']anish-technologies-brand[^>]*>.*?</style>\s*', '', index, flags=re.I | re.S)
               index = re.sub(r'<div[^>]*id=["\']anish-technologies-brand[^>]*>.*?</div>\s*', '', index, flags=re.I | re.S)
-              index = re.sub(r'\s*<!-- ANISH_REMOTE_TALLY_CONNECTOR -->.*?<!-- /ANISH_REMOTE_TALLY_CONNECTOR -->\s*', '\n', index, flags=re.I | re.S)
 
               brand = '''<!-- ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->
           <style id="anish-technologies-persistent-brand">
-            body::before{content:"ANISH TECHNOLOGIES" !important;display:block !important;width:100% !important;box-sizing:border-box !important;padding:16px 24px !important;text-align:center !important;font-family:inherit !important;font-size:22px !important;font-weight:800 !important;letter-spacing:.08em !important;line-height:1.2 !important;position:relative !important;z-index:99999 !important}
+          body::before{content:"ANISH TECHNOLOGIES" !important;display:block !important;width:100% !important;box-sizing:border-box !important;padding:16px 24px !important;text-align:center !important;font-family:inherit !important;font-size:22px !important;font-weight:800 !important;letter-spacing:.08em !important;line-height:1.2 !important;position:relative !important;z-index:99999 !important}
           </style>
           <!-- /ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->'''
-              connector = '<!-- ANISH_REMOTE_TALLY_CONNECTOR -->\n<script data-anishtally="1">' + js.replace('</script>', '<\\/script>') + '</script>\n<!-- /ANISH_REMOTE_TALLY_CONNECTOR -->'
+              connector = '<!-- ANISH_REMOTE_TALLY_CONNECTOR -->\n<script data-anishtally="1">' + js + '</script>\n<!-- /ANISH_REMOTE_TALLY_CONNECTOR -->'
 
-              if re.search(r'<head[^>]*>', index, flags=re.I):
-                  index = re.sub(r'(<head[^>]*>)', lambda m: m.group(1) + '\n' + brand + '\n', index, count=1, flags=re.I)
+              if '</head>' in index.lower():
+                  pos = index.lower().index('</head>')
+                  index = index[:pos] + brand + '\n' + index[pos:]
               else:
                   index = brand + '\n' + index
-              if re.search(r'</body>', index, flags=re.I):
-                  index = re.sub(r'(</body>)', connector + '\n\\1', index, count=1, flags=re.I)
+
+              if '</body>' in index.lower():
+                  pos = index.lower().index('</body>')
+                  index = index[:pos] + connector + '\n' + index[pos:]
               else:
                   index += '\n' + connector
 
