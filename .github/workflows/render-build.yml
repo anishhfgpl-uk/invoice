@@ -58,10 +58,11 @@ jobs:
               shutil.copytree(p,target,dirs_exist_ok=True) if p.is_dir() else shutil.copy2(p,target)
           live=Path('tally-connector/live-tally.js').read_text(encoding='utf-8')
           fix=Path('tally-connector/company-list-fix.js').read_text(encoding='utf-8')
+          (out/'tally-connector.js').write_text(live+'\n'+fix+'\n',encoding='utf-8')
           html=(out/'index.html').read_text(encoding='utf-8')
           brand='<style>body::before{content:"ANISH TECHNOLOGIES";display:block;box-sizing:border-box;width:100%;padding:16px 12px;background:#0b1220;color:#fff;text-align:center;font:900 30px Arial;letter-spacing:3px;border-bottom:3px solid #2563eb}</style>'
           html=html.replace('</head>',brand+'\n</head>')
-          inject='<script id="anish-tally-connector">\n'+live+'\n</script>\n<script id="anish-company-list-fix">\n'+fix+'\n</script>'
+          inject='<script src="/invoice/tally-connector.js"></script>'
           html=html.replace('</body>',inject+'\n</body>')
           (out/'index.html').write_text(html,encoding='utf-8')
           PY
@@ -76,7 +77,7 @@ jobs:
           git fetch origin main
           git add invoice-1
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "Build TallySync Pro for /invoice/"
+          git commit -m "Fix Tally connector loading on /invoice/"
           git push origin HEAD:main || {
             git pull --rebase origin main
             git push origin HEAD:main
