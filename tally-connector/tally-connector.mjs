@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 const TALLY_URL=process.env.TALLY_URL||'http://127.0.0.1:9000';
 const PORT=Number(process.env.CONNECTOR_PORT||9101);
 const HOST=process.env.CONNECTOR_HOST||'0.0.0.0';
-const RELAY_URL=(process.env.RELAY_URL||'https://tally-relay-anish.onrender.com').replace(/\/$/,'');
+const RELAY_URL=(process.env.RELAY_URL||'https://tally-relay-anish-anish.onrender.com').replace(/\/$/,'');
 const CODE_FILE=process.env.OFFICE_CODE_FILE||'.office-code';
 
 function makeCode(){return `ANISH-${crypto.randomBytes(4).toString('hex').toUpperCase()}`}
@@ -29,11 +29,13 @@ function connectRelay(){
   if(relaySocket && (relaySocket.readyState===0 || relaySocket.readyState===1))return;
   clearTimeout(reconnectTimer);
   try{
-    const ws=new WebSocket(relayWsUrl());
+    const url=relayWsUrl();
+    console.log(`Connecting to Relay WebSocket: ${url}`);
+    const ws=new WebSocket(url);
     relaySocket=ws;
     ws.addEventListener('open',()=>{
       relayConnected=true;
-      console.log(`Relay WebSocket connected: ${relayWsUrl()}`);
+      console.log(`Relay WebSocket connected: ${url}`);
     });
     ws.addEventListener('message',event=>{
       try{
@@ -52,18 +54,19 @@ function connectRelay(){
         }).catch(e=>console.log('Tally queue:',e.message));
       }catch(e){console.log('Relay message:',e.message)}
     });
-    ws.addEventListener('close',()=>{
+    ws.addEventListener('close',event=>{
       if(relaySocket===ws)relaySocket=null;
       relayConnected=false;
-      console.log('Relay WebSocket disconnected; retrying...');
+      console.log(`Relay WebSocket closed: code=${event.code||0} reason=${event.reason||'none'}`);
       reconnectTimer=setTimeout(connectRelay,2000);
     });
-    ws.addEventListener('error',()=>{
+    ws.addEventListener('error',event=>{
       relayConnected=false;
+      console.log('Relay WebSocket error:',event?.message||event?.error?.message||'connection error');
     });
   }catch(e){
     relayConnected=false;
-    console.log('Relay WebSocket:',e.message);
+    console.log('Relay WebSocket exception:',e.message);
     reconnectTimer=setTimeout(connectRelay,2000);
   }
 }
@@ -79,9 +82,9 @@ const server=http.createServer(async(req,res)=>{
     if(u.pathname==='/health'&&req.method==='GET'){
       let ok=false;
       try{ok=(await fetch(TALLY_URL,{signal:AbortSignal.timeout(3000)})).ok}catch{}
-      return send(res,200,JSON.stringify({ok:true,service:'tally-connector',tallyUrl:TALLY_URL,tally:ok,relay:relayConnected,relayUrl:RELAY_URL,officeCode:OFFICE_CODE}),origin);
+      return send(res,200,JSON.stringify({ok:true,service:'tally-connector',tallyUrl:TALLY_URL,tally:ok,relay:relayConnected,relayUrl:RELAY_URL,officeCode:OFFICE_CODE}),origin)
     }
-    if(u.pathname==='/code'&&req.method==='GET')return send(res,200,JSON.stringify({ok:true,officeCode:OFFICE_CODE,relay:relayConnected,relayUrl:RELAY_URL}),origin);
+    if(u.pathname==='/code'&&req.method==='GET')return send(res,200,JSON.stringify({ok:true,officeCode:OFFICE_CODE,relay:relayConnected,relayUrl:RELAY_URL}),origin)
     if((u.pathname==='/tally/xml'||u.pathname==='/tally')&&req.method==='POST'){
       if(origin&&!ALLOWED_ORIGINS.has(origin))return send(res,403,JSON.stringify({ok:false,error:'Origin not allowed'}),origin);
       const xml=await read(req);
