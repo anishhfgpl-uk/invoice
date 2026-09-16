@@ -1,4 +1,4 @@
-/* Remote Tally connector UI v5 - company list bridge + faster imports */
+/* Remote Tally connector UI v6 - company list bridge + imported company card */
 (()=>{
 const RELAY='https://tally-relay-anish.onrender.com';
 const K={url:'tallysync_connector_url',code:'tallysync_office_code',company:'tallysync_selected_company',companyData:'tallysync_company_profile',companies:'tallysync_companies',debtors:'tallysync_debtors',items:'tallysync_items',invoices:'tallysync_invoices'};
@@ -11,6 +11,17 @@ async function collection(name,type,fetches,extra='',useCompany=true){const tag=
 function parse(raw,tags){const s=String(raw||'').trim();if(!s)throw Error('Tally ne empty response diya');const d=new DOMParser().parseFromString(s,'text/xml');const root=d.documentElement;if(!root||root.nodeName==='parsererror')throw Error('Invalid XML response from Tally');const err=[...d.querySelectorAll('LINEERROR,ERROR')].map(x=>x.textContent.trim()).filter(Boolean);if(err.length)throw Error(err.join(' | '));const nodes=[...d.querySelectorAll('LEDGER,STOCKITEM,VOUCHER,COMPANY')];return nodes.map(n=>{const o={};tags.forEach(t=>{const q=n.querySelector(t)||n.querySelector(t.toUpperCase());o[t]=(q?.textContent||n.getAttribute(t)||n.getAttribute(t.toUpperCase())||'').trim()});return o}).filter(o=>Object.values(o).some(Boolean))}
 function emit(name,data){try{localStorage.setItem(name,JSON.stringify(data))}catch(e){console.warn('localStorage:',e)}window.dispatchEvent(new CustomEvent('tallysync:import',{detail:{type:name,data,company:selected()}}))}
 function mergeCompanies(rows){let old=[];try{old=JSON.parse(localStorage.getItem(K.companies)||'[]')}catch{};const map=new Map();[...old,...rows].forEach(x=>{if(x?.Name)map.set((x.Name+'|'+(x.GSTIN||x.Guid||'')).toLowerCase(),x)});return [...map.values()]}
+function renderImportedCompanyCard(chosen){
+ if(!chosen?.Name||!document.body)return;
+ const id='tallysync-imported-company-card';let old=document.getElementById(id);if(old)old.remove();
+ const allText=[...document.querySelectorAll('body *')].filter(e=>e.children.length===0&&/Shree Ganesh Traders/i.test(e.textContent||''));
+ const anchor=allText[0];
+ const card=document.createElement('div');card.id=id;card.setAttribute('data-tallysync-imported-company','1');
+ card.style.cssText='margin-top:10px;padding:14px 16px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;box-shadow:0 3px 12px #00000012;cursor:pointer;font:inherit;';
+ card.innerHTML=`<div style="font-weight:800;color:#0f172a">${esc(chosen.Name)}</div><div style="font-size:12px;color:#64748b;margin-top:4px">${esc(chosen.GSTIN||'GSTIN not available')}${chosen.StateName?' • '+esc(chosen.StateName):''}</div><div style="font-size:11px;color:#2563eb;margin-top:7px">✓ Imported from Tally • Click to make Active Company</div>`;
+ card.onclick=()=>{localStorage.setItem(K.company,JSON.stringify(chosen));emit(K.companyData,chosen);window.TallySyncActiveCompany=chosen;document.querySelectorAll('[data-active-company]').forEach(el=>el.textContent=chosen.Name);window.dispatchEvent(new CustomEvent('tallysync:company-updated',{detail:{companies:JSON.parse(localStorage.getItem(K.companies)||'[]'),selected:chosen}}));card.style.borderColor='#2563eb';card.style.background='#eff6ff';};
+ if(anchor){let p=anchor;for(let i=0;i<5&&p.parentElement;i++){if(p.parentElement.children.length<=8)p=p.parentElement;else break}p.insertAdjacentElement('afterend',card);}else{card.style.position='fixed';card.style.top='120px';card.style.right='24px';card.style.zIndex='99998';document.body.appendChild(card)}
+}
 function syncCompanyUI(rows,chosen){
  const all=[...new Map(rows.filter(x=>x?.Name).map(x=>[x.Name.toLowerCase(),x])).values()];
  const selectors=['#companySelect','#company-select','#companyDropdown','#company-dropdown','select[name="company"]','select[name="companySelect"]','[data-company-select]','[data-company-list]','[data-companies]'];
@@ -19,11 +30,11 @@ function syncCompanyUI(rows,chosen){
  const detail={companies:all,selected:chosen};
  ['tallysync:company-updated','tallysync:companies','tallysync:company-imported'].forEach(n=>window.dispatchEvent(new CustomEvent(n,{detail})));
  try{window.postMessage({type:'TALLYSYNC_COMPANIES_IMPORTED',companies:all,selected:chosen},'*')}catch{}
- // React/Vue-style app bridge: expose a stable event payload and common globals.
  window.TallySyncCompanies=all;window.TallySyncActiveCompany=chosen;
+ renderImportedCompanyCard(chosen);
 }
 async function loadCompanies(preferredName=''){const raw=await collection('Company Collection','Company','Name,Guid,MailingName,StateName,PinCode,PhoneNumber,Email,GSTIN','',false);const rows=parse(raw,['Name','Guid','MailingName','StateName','PinCode','PhoneNumber','Email','GSTIN']);if(!rows.length)throw Error('TallyPrime me company open nahi hai.');const old=selected();const wanted=preferredName||old?.Name||'';const chosen=rows.find(x=>wanted&&x.Name===wanted)||rows[0];const merged=mergeCompanies(rows);localStorage.setItem(K.companies,JSON.stringify(merged));localStorage.setItem(K.company,JSON.stringify(chosen));emit(K.companyData,chosen);syncCompanyUI(merged,chosen);return chosen}
-async function importCompanyProfile(){const btn=document.querySelector('#ts-company');if(btn){btn.disabled=true;btn.textContent='⏳ Importing...'}try{const company=await loadCompanies(window.TallySyncLastCompanyName||'');return company}finally{if(btn){btn.disabled=false;btn.textContent='Import Company Profile'}}}
+async function importCompanyProfile(){const btn=document.querySelector('#ts-company');if(btn){btn.disabled=true;btn.textContent='⏳ Importing...'}try{return await loadCompanies(window.TallySyncLastCompanyName||'')}finally{if(btn){btn.disabled=false;btn.textContent='Import Company Profile'}}}
 async function testConnect(status,q){const c=q('#ts-code').value.trim().toUpperCase(),u=q('#ts-url').value.trim();if(!c&&!u)throw Error('Office Code ya Computer IP/URL enter karein');localStorage.setItem(K.code,c);localStorage.setItem(K.url,u||'http://127.0.0.1:9101');localStorage.removeItem(K.company);status.textContent='⏳ Tally connection test...';const raw=await collection('Connection Test','Company','Name','',false);const company=parse(raw,['Name'])[0];if(!company?.Name)throw Error('Tally response me company name nahi mila');window.TallySyncLastCompanyName=company.Name;const full=await loadCompanies(company.Name);status.textContent=`✅ Tally Connected Successfully\nCompany: ${full.Name||'-'}\nGSTIN: ${full.GSTIN||'-'}`}
 async function importDebtors(){if(!selected())await loadCompanies();const raw=await collection('All Ledgers','Ledger','Name,Parent,ClosingBalance,OpeningBalance,PhoneNumber,Email,GSTIN,Address,MailingName,StateName,PinCode,PartyGSTIN,LedgerContact,LedgerPhone');const all=parse(raw,['Name','Parent','ClosingBalance','OpeningBalance','PhoneNumber','Email','GSTIN','Address','MailingName','StateName','PinCode','PartyGSTIN','LedgerContact','LedgerPhone']);const debtors=all.filter(x=>/sundry\s*debtors/i.test(x.Parent||''));emit(K.debtors,debtors);return debtors}
 async function importItems(){if(!selected())await loadCompanies();const raw=await collection('All Stock Items','StockItem','Name,Parent,ClosingBalance,ClosingValue,OpeningBalance,OpeningValue,BaseUnits,Rate,PartNo,HSNCode,HSNName,TaxRate');const items=parse(raw,['Name','Parent','ClosingBalance','ClosingValue','OpeningBalance','OpeningValue','BaseUnits','Rate','PartNo','HSNCode','HSNName','TaxRate']);emit(K.items,items);return items}
