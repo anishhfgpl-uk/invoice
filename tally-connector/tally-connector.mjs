@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 const TALLY_URL=process.env.TALLY_URL||'http://127.0.0.1:9000';
 const PORT=Number(process.env.CONNECTOR_PORT||9101);
 const HOST=process.env.CONNECTOR_HOST||'0.0.0.0';
-const RELAY_URL=(process.env.RELAY_URL||'https://tally-relay-anish-anish.onrender.com').replace(/\/$/,'');
+const RELAY_URL=(process.env.RELAY_URL||'https://tally-relay-anish.onrender.com').replace(/\/$/,'');
 const CODE_FILE=process.env.OFFICE_CODE_FILE||'.office-code';
 
 function makeCode(){return `ANISH-${crypto.randomBytes(4).toString('hex').toUpperCase()}`}
@@ -43,14 +43,9 @@ function connectRelay(){
         if(msg.type!=='tally_xml'||!msg.id)return;
         tallyQueue=tallyQueue.then(async()=>{
           let result;
-          try{
-            result=await tally(String(msg.xml||''));
-          }catch(e){
-            result=`<ENVELOPE><BODY><LINEERROR>${String(e.message).replace(/[<&>]/g,'')}</LINEERROR></BODY></ENVELOPE>`;
-          }
-          if(ws.readyState===1){
-            ws.send(JSON.stringify({type:'tally_result',id:msg.id,xml:result}));
-          }
+          try{result=await tally(String(msg.xml||''));}
+          catch(e){result=`<ENVELOPE><BODY><LINEERROR>${String(e.message).replace(/[<&>]/g,'')}</LINEERROR></BODY></ENVELOPE>`;}
+          if(ws.readyState===1)ws.send(JSON.stringify({type:'tally_result',id:msg.id,xml:result}));
         }).catch(e=>console.log('Tally queue:',e.message));
       }catch(e){console.log('Relay message:',e.message)}
     });
@@ -80,15 +75,13 @@ const server=http.createServer(async(req,res)=>{
   const u=new URL(req.url,`http://${req.headers.host}`);
   try{
     if(u.pathname==='/health'&&req.method==='GET'){
-      let ok=false;
-      try{ok=(await fetch(TALLY_URL,{signal:AbortSignal.timeout(3000)})).ok}catch{}
-      return send(res,200,JSON.stringify({ok:true,service:'tally-connector',tallyUrl:TALLY_URL,tally:ok,relay:relayConnected,relayUrl:RELAY_URL,officeCode:OFFICE_CODE}),origin)
+      let ok=false;try{ok=(await fetch(TALLY_URL,{signal:AbortSignal.timeout(3000)})).ok}catch{}
+      return send(res,200,JSON.stringify({ok:true,service:'tally-connector',tallyUrl:TALLY_URL,tally:ok,relay:relayConnected,relayUrl:RELAY_URL,officeCode:OFFICE_CODE}),origin);
     }
-    if(u.pathname==='/code'&&req.method==='GET')return send(res,200,JSON.stringify({ok:true,officeCode:OFFICE_CODE,relay:relayConnected,relayUrl:RELAY_URL}),origin)
+    if(u.pathname==='/code'&&req.method==='GET')return send(res,200,JSON.stringify({ok:true,officeCode:OFFICE_CODE,relay:relayConnected,relayUrl:RELAY_URL}),origin);
     if((u.pathname==='/tally/xml'||u.pathname==='/tally')&&req.method==='POST'){
       if(origin&&!ALLOWED_ORIGINS.has(origin))return send(res,403,JSON.stringify({ok:false,error:'Origin not allowed'}),origin);
-      const xml=await read(req);
-      if(!xml.trim())return send(res,400,JSON.stringify({ok:false,error:'XML body required'}),origin);
+      const xml=await read(req);if(!xml.trim())return send(res,400,JSON.stringify({ok:false,error:'XML body required'}),origin);
       return send(res,200,await tally(xml),origin,'text/xml; charset=utf-8');
     }
     return send(res,404,JSON.stringify({ok:false,error:'Not found'}),origin);
