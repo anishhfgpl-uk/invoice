@@ -1,15 +1,106 @@
 <!doctype html>
-<html lang="en"><head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>TallySync Pro - Tally Import, Ledger Ageing & GST Invoicing</title>
-  <script type="module" crossorigin src="/assets/index-DH1aDdmx.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-lyv3FnVH.css">
-<style>body::before{content:"ANISH TECHNOLOGIES";display:block;box-sizing:border-box;width:100%;padding:16px 12px;background:#0b1220;color:#fff;text-align:center;font:900 30px Arial;letter-spacing:3px;border-bottom:3px solid #2563eb}</style>
-</head><body>
-<div id="root"></div>
+<html lang="en">
+  <head>\n\n
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TallySync Pro - Tally Import, Ledger Ageing & GST Invoicing</title>
+    <meta name="description" content="Import Tally company profiles, debtors, stock items with full editing, interactive date-wise ledger statements with bill ageing analysis, offline GST invoice generator, and month-wise GSTR-1 returns." />
+    <meta property="og:title" content="TallySync Pro - Tally Import, Ledger Ageing & GST Invoicing" />
+    <meta property="og:description" content="Import Tally company profiles, debtors, stock items with full editing, interactive date-wise ledger statements with bill ageing analysis, offline GST invoice generator, and month-wise GSTR-1 returns." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- TALLYSYNC_IP_CONNECTOR -->
+<script>
+(()=>{
+  const KEY='tallysync_connector_url',DEFAULT='http://127.0.0.1:9101';
+  const nativeFetch=window.fetch.bind(window);
+  const base=()=>localStorage.getItem(KEY)||DEFAULT;
+  const rewrite=input=>{try{const u=typeof input==='string'?new URL(input,location.href):new URL(input.url);if((u.hostname==='127.0.0.1'||u.hostname==='localhost')&&u.port==='9000'){const b=new URL(base());u.protocol=b.protocol;u.hostname=b.hostname;u.port=b.port;return u.toString()}}catch(_){ }return input};
+  window.fetch=(input,init)=>nativeFetch(rewrite(input),init);
+  ={get url(){return base()},set url(v){localStorage.setItem(KEY,(v||DEFAULT).trim().replace(/\/$/,''))}};
+  ==='loading')document.addEventListener('DOMContentLoaded',panel);else panel();
+})();
+</script>
+
+<!-- TALLYSYNC_IP_CONNECTOR_V2 -->
+<script>
+(()=>{
+  const KEY='tallysync_connector_url', COMPANY_KEY='tallysync_selected_company', DEFAULT='http://127.0.0.1:9101';
+  const nativeFetch=window.fetch.bind(window);
+  const base=()=>localStorage.getItem(KEY)||DEFAULT;
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const xmlEsc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+  const rewrite=input=>{try{const u=typeof input==='string'?new URL(input,location.href):new URL(input.url);if((u.hostname==='127.0.0.1'||u.hostname==='localhost')&&u.port==='9000'){const b=new URL(base());u.protocol=b.protocol;u.hostname=b.hostname;u.port=b.port;return u.toString()}}catch(_){ }return input};
+  window.fetch=(input,init)=>nativeFetch(rewrite(input),init);
+  ={get url(){return base()},set url(v){localStorage.setItem(KEY,(v||DEFAULT).trim().replace(/\/$/,''))},get company(){try{return JSON.parse(localStorage.getItem(COMPANY_KEY)||'null')}catch(_){return null}}};
+  async function {const u=base().replace(/\/$/,'')+'/tally/xml';const r=await nativeFetch(u,{method:'POST',headers:{'Content-Type':'text/xml;charset=utf-8'},body:xml});if(!r.ok)throw new Error('Tally request failed: HTTP '+r.status);return await r.text()}
+  function val(node,names){for(const name of names){const a=node.getAttribute&&node.getAttribute(name);if(a)return a.trim();const q=node.querySelector&&node.querySelector(name);if(q&&q.textContent.trim())return q.textContent.trim()}return ''}
+  async function fetchCompanies(status,select){
+    status.textContent='⏳ Fetching companies from Tally...';
+    const xml=`<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>Company Collection</ID></HEADER><BODY><DESC><STATICVARIABLES><SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT></STATICVARIABLES><TDL><TDLMESSAGE><COLLECTION NAME="Company Collection"><TYPE>Company</TYPE><FETCH>Name,Guid,MailingName,StateName,PinCode,PhoneNumber,Email,GSTIN</FETCH></COLLECTION></TDLMESSAGE></TDL></DESC>
+
+
+</BODY></ENVELOPE>`;
+    
+</script>
+
+<!-- TALLYSYNC_LIVE_DASHBOARD_V1 --><link rel="stylesheet" href="./anish-brand.css">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->
+<style id="anish-technologies-persistent-brand">
+body::before{content:"ANISH TECHNOLOGIES" !important;display:block !important;width:100% !important;box-sizing:border-box !important;background:#0b1220 !important;color:#fff !important;text-align:center !important;padding:16px 12px !important;font-family:Arial,Helvetica,sans-serif !important;font-size:clamp(24px,4vw,38px) !important;font-weight:900 !important;letter-spacing:3px !important;line-height:1.1 !important;border-bottom:3px solid #2563eb !important;position:relative !important;z-index:2147483000 !important}
+</style>
+<!-- /ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->
+</head>
+  <body class="bg-slate-50 text-slate-900 antialiased font-['Plus_Jakarta_Sans',sans-serif]">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  <div class="at-sub"></div></div>
+</div>
+</div>
+<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/tally-connector.mjs";a.download="anish-tally-connector.mjs";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>
+<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/tally-connector.mjs";a.download="anish-tally-connector.mjs";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>
+<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>
+<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>
+<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>
+<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>
+<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>
+<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>
+<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>
+<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>
+<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>
+<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>
+<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>
+<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>
+<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>
+<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>
+<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>
 <script id="anish-tally-connector">
-/* Remote Tally connector UI v6 - company list bridge + imported company card */
+/* Remote Tally connector UI v7 - company list bridge + imported company card */
 (()=>{
 const RELAY='https://tally-relay-anish.onrender.com';
 const K={url:'tallysync_connector_url',code:'tallysync_office_code',company:'tallysync_selected_company',companyData:'tallysync_company_profile',companies:'tallysync_companies',debtors:'tallysync_debtors',items:'tallysync_items',invoices:'tallysync_invoices'};
@@ -25,13 +116,13 @@ function mergeCompanies(rows){let old=[];try{old=JSON.parse(localStorage.getItem
 function renderImportedCompanyCard(chosen){
  if(!chosen?.Name||!document.body)return;
  const id='tallysync-imported-company-card';let old=document.getElementById(id);if(old)old.remove();
- const allText=[...document.querySelectorAll('body *')].filter(e=>e.children.length===0&&/Shree Ganesh Traders/i.test(e.textContent||''));
+ const allText=[...document.querySelectorAll('body *')].filter(e=>e.children.length===0&&/Select Company/i.test(e.textContent||''));
  const anchor=allText[0];
  const card=document.createElement('div');card.id=id;card.setAttribute('data-tallysync-imported-company','1');
  card.style.cssText='margin-top:10px;padding:14px 16px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;box-shadow:0 3px 12px #00000012;cursor:pointer;font:inherit;';
  card.innerHTML=`<div style="font-weight:800;color:#0f172a">${esc(chosen.Name)}</div><div style="font-size:12px;color:#64748b;margin-top:4px">${esc(chosen.GSTIN||'GSTIN not available')}${chosen.StateName?' • '+esc(chosen.StateName):''}</div><div style="font-size:11px;color:#2563eb;margin-top:7px">✓ Imported from Tally • Click to make Active Company</div>`;
  card.onclick=()=>{localStorage.setItem(K.company,JSON.stringify(chosen));emit(K.companyData,chosen);window.TallySyncActiveCompany=chosen;document.querySelectorAll('[data-active-company]').forEach(el=>el.textContent=chosen.Name);window.dispatchEvent(new CustomEvent('tallysync:company-updated',{detail:{companies:JSON.parse(localStorage.getItem(K.companies)||'[]'),selected:chosen}}));card.style.borderColor='#2563eb';card.style.background='#eff6ff';};
- if(anchor){let p=anchor;for(let i=0;i<5&&p.parentElement;i++){if(p.parentElement.children.length<=8)p=p.parentElement;else break}p.insertAdjacentElement('afterend',card);}else{card.style.position='fixed';card.style.top='120px';card.style.right='24px';card.style.zIndex='99998';document.body.appendChild(card)}
+ if(anchor){let p=anchor;for(let i=0;i<6&&p.parentElement;i++){if(p.parentElement.children.length<=12)p=p.parentElement;else break}p.insertAdjacentElement('afterend',card);}else{card.style.position='fixed';card.style.top='120px';card.style.right='24px';card.style.zIndex='99998';document.body.appendChild(card)}
 }
 function syncCompanyUI(rows,chosen){
  const all=[...new Map(rows.filter(x=>x?.Name).map(x=>[x.Name.toLowerCase(),x])).values()];
@@ -45,7 +136,7 @@ function syncCompanyUI(rows,chosen){
  renderImportedCompanyCard(chosen);
 }
 async function loadCompanies(preferredName=''){const raw=await collection('Company Collection','Company','Name,Guid,MailingName,StateName,PinCode,PhoneNumber,Email,GSTIN','',false);const rows=parse(raw,['Name','Guid','MailingName','StateName','PinCode','PhoneNumber','Email','GSTIN']);if(!rows.length)throw Error('TallyPrime me company open nahi hai.');const old=selected();const wanted=preferredName||old?.Name||'';const chosen=rows.find(x=>wanted&&x.Name===wanted)||rows[0];const merged=mergeCompanies(rows);localStorage.setItem(K.companies,JSON.stringify(merged));localStorage.setItem(K.company,JSON.stringify(chosen));emit(K.companyData,chosen);syncCompanyUI(merged,chosen);return chosen}
-async function importCompanyProfile(){const btn=document.querySelector('#ts-company');if(btn){btn.disabled=true;btn.textContent='⏳ Importing...'}try{return await loadCompanies(window.TallySyncLastCompanyName||'')}finally{if(btn){btn.disabled=false;btn.textContent='Import Company Profile'}}}
+async function importCompanyProfile(){const btn=document.querySelector('#ts-company');if(btn){btn.disabled=true;btn.textContent='⏳ Importing...'}try{return await loadCompanies(window.TallySyncLastCompanyName||'')}finally{if(btn){btn.disabled=false;btn.textContent='Import Company Profile'}}
 async function testConnect(status,q){const c=q('#ts-code').value.trim().toUpperCase(),u=q('#ts-url').value.trim();if(!c&&!u)throw Error('Office Code ya Computer IP/URL enter karein');localStorage.setItem(K.code,c);localStorage.setItem(K.url,u||'http://127.0.0.1:9101');localStorage.removeItem(K.company);status.textContent='⏳ Tally connection test...';const raw=await collection('Connection Test','Company','Name','',false);const company=parse(raw,['Name'])[0];if(!company?.Name)throw Error('Tally response me company name nahi mila');window.TallySyncLastCompanyName=company.Name;const full=await loadCompanies(company.Name);status.textContent=`✅ Tally Connected Successfully\nCompany: ${full.Name||'-'}\nGSTIN: ${full.GSTIN||'-'}`}
 async function importDebtors(){if(!selected())await loadCompanies();const raw=await collection('All Ledgers','Ledger','Name,Parent,ClosingBalance,OpeningBalance,PhoneNumber,Email,GSTIN,Address,MailingName,StateName,PinCode,PartyGSTIN,LedgerContact,LedgerPhone');const all=parse(raw,['Name','Parent','ClosingBalance','OpeningBalance','PhoneNumber','Email','GSTIN','Address','MailingName','StateName','PinCode','PartyGSTIN','LedgerContact','LedgerPhone']);const debtors=all.filter(x=>/sundry\s*debtors/i.test(x.Parent||''));emit(K.debtors,debtors);return debtors}
 async function importItems(){if(!selected())await loadCompanies();const raw=await collection('All Stock Items','StockItem','Name,Parent,ClosingBalance,ClosingValue,OpeningBalance,OpeningValue,BaseUnits,Rate,PartNo,HSNCode,HSNName,TaxRate');const items=parse(raw,['Name','Parent','ClosingBalance','ClosingValue','OpeningBalance','OpeningValue','BaseUnits','Rate','PartNo','HSNCode','HSNName','TaxRate']);emit(K.items,items);return items}
@@ -114,4 +205,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',render);else render();
 })();
 </script>
-</body></html>
+<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>
+</body>
+</html>
+
