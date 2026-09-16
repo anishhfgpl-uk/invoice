@@ -35,15 +35,14 @@ jobs:
 
               index = zin.read(index_name).decode('utf-8')
 
-              # Remove the injected branding block if present.
+              # Remove the previously injected top-brand block.
               index = re.sub(r'<!-- ANISH_TECHNOLOGIES_TOP_BRAND -->.*?</style>\s*<div id="anish-technologies-brand">.*?</div>\s*', '', index, flags=re.I | re.S)
               index = re.sub(r'<style[^>]*id=["\']anish-technologies-brand["\'][^>]*>.*?</style>\s*', '', index, flags=re.I | re.S)
               index = re.sub(r'<div[^>]*id=["\']anish-technologies-brand["\'][^>]*>.*?</div>\s*', '', index, flags=re.I | re.S)
 
-              # Fallback: remove only the first visible occurrences (the top header),
-              # leaving the rest of the Invoice Repository untouched.
-              index = index.replace('ANISH TECHNOLOGIES', '', 1)
-              index = index.replace('TallySync Pro • Digital Solutions', '', 1)
+              # Remove only the first visible top occurrences, preserving the rest of the Invoice Repository.
+              for text in ('ANISH TECHNOLOGIES', 'TallySync Pro • Digital Solutions', 'TallySync Pro Digital Solutions', 'TallySync Pro - Digital Solutions'):
+                  index = index.replace(text, '', 1)
 
               tmp = zpath.with_suffix('.tmp.zip')
               with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zout:
@@ -59,5 +58,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
           git diff --cached --quiet && exit 0
-          git commit -m "Remove visible top invoice branding"
+          git commit -m "Remove TallySync Pro top branding"
           git push origin HEAD:main
