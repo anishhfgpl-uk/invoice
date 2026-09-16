@@ -6,6 +6,7 @@
   const getCompanies=()=>{try{return JSON.parse(localStorage.getItem('tallysync_companies')||'[]').filter(x=>x&&x.Name)}catch{return[]}};
   const getSelected=()=>{try{return JSON.parse(localStorage.getItem('tallysync_selected_company')||'null')}catch{return null}};
   function choose(company){
+    if(!company?.Name)return;
     localStorage.setItem('tallysync_selected_company',JSON.stringify(company));
     localStorage.setItem('tallysync_company_profile',JSON.stringify(company));
     window.TallySyncActiveCompany=company;
@@ -15,10 +16,10 @@
     render();
   }
   function host(){
-    const els=[...document.querySelectorAll('body *')].filter(e=>e.children.length===0&&/^Select Company$/i.test((e.textContent||'').trim()));
+    const els=[...document.querySelectorAll('body *')].filter(e=>e.children.length===0&&/select company/i.test((e.textContent||'').trim()));
     if(!els.length)return null;
     let p=els[0];
-    for(let i=0;i<5&&p.parentElement;i++){
+    for(let i=0;i<6&&p.parentElement;i++){
       if(p.parentElement.children.length<=12){p=p.parentElement;break}
       p=p.parentElement;
     }
@@ -28,17 +29,29 @@
     const companies=getCompanies();
     if(!companies.length)return;
     const h=host();
-    if(!h)return;
     let box=document.getElementById('tallysync-real-company-list');
-    if(!box){box=document.createElement('div');box.id='tallysync-real-company-list';box.setAttribute('data-tallysync-company-selector','1');h.insertAdjacentElement('afterend',box)}
+    if(!box){
+      box=document.createElement('div');
+      box.id='tallysync-real-company-list';
+      box.setAttribute('data-tallysync-company-selector','1');
+      if(h){h.insertAdjacentElement('afterend',box)}
+      else{
+        box.style.position='fixed';
+        box.style.top='92px';
+        box.style.right='24px';
+        box.style.width='min(360px,calc(100vw - 48px))';
+        box.style.zIndex='2147483001';
+        document.body.appendChild(box);
+      }
+    }
     const selected=getSelected();
-    box.style.cssText='margin-top:8px;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;';
-    box.innerHTML=companies.map((c,i)=>`<button type="button" data-ts-company-index="${i}" style="width:100%;text-align:left;padding:11px 13px;border:1px solid ${selected?.Name===c.Name?'#2563eb':'#e2e8f0'};border-radius:10px;background:${selected?.Name===c.Name?'#eff6ff':'#fff'};cursor:pointer;font:inherit"><div style="font-weight:700;color:#0f172a">${esc(c.Name)}</div><div style="font-size:11px;color:#64748b;margin-top:3px">${esc(c.GSTIN||'GSTIN not available')}${c.StateName?' • '+esc(c.StateName):''}</div>${selected?.Name===c.Name?'<div style="font-size:10px;color:#2563eb;margin-top:3px">✓ Active Company</div>':''}</button>`).join('');
+    box.style.cssText+=(h?'margin-top:8px;width:100%;':'')+'box-sizing:border-box;display:flex;flex-direction:column;gap:6px;';
+    box.innerHTML='<div style="font:800 13px Arial;color:#0f172a;margin-bottom:3px">Tally Companies</div>'+companies.map((c,i)=>`<button type="button" data-ts-company-index="${i}" style="width:100%;text-align:left;padding:11px 13px;border:1px solid ${selected?.Name===c.Name?'#2563eb':'#e2e8f0'};border-radius:10px;background:${selected?.Name===c.Name?'#eff6ff':'#fff'};cursor:pointer;font:inherit"><div style="font-weight:700;color:#0f172a">${esc(c.Name)}</div><div style="font-size:11px;color:#64748b;margin-top:3px">${esc(c.GSTIN||'GSTIN not available')}${c.StateName?' • '+esc(c.StateName):''}</div>${selected?.Name===c.Name?'<div style="font-size:10px;color:#2563eb;margin-top:3px">✓ Active Company</div>':''}</button>`).join('');
     box.querySelectorAll('[data-ts-company-index]').forEach(b=>b.onclick=()=>choose(companies[Number(b.dataset.tsCompanyIndex)]));
   }
   window.addEventListener('tallysync:companies',render);
   window.addEventListener('tallysync:company-imported',render);
   window.addEventListener('tallysync:company-updated',render);
-  new MutationObserver(()=>{if(!document.getElementById('tallysync-real-company-list'))render()}).observe(document.documentElement,{childList:true,subtree:true});
+  new MutationObserver(()=>{if(getCompanies().length&&!document.getElementById('tallysync-real-company-list'))render()}).observe(document.documentElement,{childList:true,subtree:true});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',render);else render();
 })();
