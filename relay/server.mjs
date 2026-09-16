@@ -1,38 +1,114 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
+import { WebSocketServer } from 'ws';
 
-const PORT=Number(process.env.PORT||10000);
-const pending=new Map();
-const devices=new Map();
-const CORS={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type'};
-function send(res,status,body,type='application/json'){res.writeHead(status,{'Content-Type':type,...CORS});res.end(body)}
-async function body(req){const a=[];for await(const c of req)a.push(c);return Buffer.concat(a).toString('utf8')}
-function json(res,status,obj){send(res,status,JSON.stringify(obj))}
-function safeCode(c){return /^[A-Z0-9_-]{6,40}$/i.test(c)}
+const PORT = Number(process.env.PORT || 10000);
+const MAX_BODY = 20 * 1024 * 1024;
+const REQUEST_TIMEOUT = 120000;
+const devices = new Map();
+const pending = new Map();
+
+function json(res, status, body) {
+  const data = JSON.stringify(body);
+  res.writeHead(status, {
+    'Content-Type':'application/json; charset=utf-8',
+    'Access-Control-Allow-Origin':'*',
+    'Access-Control-Allow-Headers':'Content-Type, X-Tally-Device-Code',
+    'Access-Control-Allow-Methods':'GET,POST,OPTIONS'
+  });
+  res.end(data);
+}
+function readBody(req){
+  return new Promise((resolve,reject)=>{
+    let data='';
+    req.on('data',chunk=>{
+      data+=chunk;
+      if(data.length>MAX_BODY){reject(new Error('Request too large'));req.destroy()}
+    });
+    req.on('end',()=>resolve(data));
+    req.on('error',reject);
+  });
+}
+function newId(){return crypto.randomUUID()}
+
 const server=http.createServer(async(req,res)=>{
-  if(req.method==='OPTIONS')return send(res,204,'');
+  if(req.method==='OPTIONS')return json(res,204,{});
   const u=new URL(req.url,`http://${req.headers.host}`);
-  try{
-    if(u.pathname==='/health')return json(res,200,{ok:true,service:'tally-relay',devices:devices.size,pending:pending.size});
-    const m=u.pathname.match(/^\/api\/device\/([^/]+)\/(register|poll|response)$/);
-    if(m){
-      const code=decodeURIComponent(m[1]); if(!safeCode(code))return json(res,400,{ok:false,error:'Invalid office code'});
-      const action=m[2];
-      if(action==='register'&&req.method==='POST'){devices.set(code,{lastSeen:Date.now()});return json(res,200,{ok:true,registered:true})}
-      if(action==='poll'&&req.method==='GET'){devices.set(code,{lastSeen:Date.now()});const item=[...pending.values()].find(x=>x.code===code&&!x.claimed);if(!item)return json(res,200,{ok:true,request:null});item.claimed=true;return json(res,200,{ok:true,request:{id:item.id,xml:item.xml}})}
-      if(action==='response'&&req.method==='POST'){const data=JSON.parse(await body(req));const item=pending.get(data.id);if(!item)return json(res,404,{ok:false,error:'Request not found'});clearTimeout(item.timer);pending.delete(data.id);item.resolve(String(data.xml||''));return json(res,200,{ok:true})}
-    }
-    const x=u.pathname.match(/^\/api\/device\/([^/]+)\/xml$/);
-    if(x&&req.method==='POST'){
-      const code=decodeURIComponent(x[1]);if(!safeCode(code))return json(res,400,{ok:false,error:'Invalid office code'});
-      const d=devices.get(code);if(!d||Date.now()-d.lastSeen>15000)return json(res,409,{ok:false,error:'Office connector is offline'});
-      const xml=await body(req);if(!xml.trim())return json(res,400,{ok:false,error:'XML required'});
-      const id=crypto.randomUUID();
-      const result=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pending.delete(id);reject(new Error('Office connector timeout'))},35000);pending.set(id,{id,code,xml,claimed:false,resolve,reject,timer})}).catch(e=>null);
-      if(result===null)return json(res,504,{ok:false,error:'Office connector timeout'});
-      return send(res,200,result,'text/xml; charset=utf-8');
-    }
-    return json(res,404,{ok:false,error:'Not found'});
-  }catch(e){return json(res,500,{ok:false,error:String(e?.message||e)})}
+  if(u.pathname==='/health')return json(res,200,{ok:true,service:'tally-relay',devices:devices.size,pending:pending.size});
+  const x=u.pathname.match(/^\/api\/device\/([A-Z0-9]+)\/xml$/);
+  if(x&&req.method==='POST'){
+    const deviceCode=x[1],d=devices.get(deviceCode);
+    if(!d||d.ws.readyState!==1)return json(res,409,{ok:false,error:'Office Tally connector is offline'});
+    try{
+      const xml=await readBody(req),id=newId();
+      const p=new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>{
+          pending.delete(id);
+          reject(new Error(`Tally request timed out after ${REQUEST_TIMEOUT/1000} seconds`));
+        },REQUEST_TIMEOUT);
+        pending.set(id,{resolve,reject,timer,startedAt:Date.now()});
+      });
+      d.lastSeen=Date.now();
+      d.ws.send(JSON.stringify({type:'tally_xml',id,xml}));
+      const result=await p;
+      res.writeHead(200,{'Content-Type':'text/xml; charset=utf-8','Access-Control-Allow-Origin':'*'});
+      return res.end(result);
+    }catch(e){return json(res,502,{ok:false,error:e.message})}
+  }
+  if(u.pathname==='/api/device/register'&&req.method==='POST')return json(res,200,{ok:true,code:crypto.randomBytes(9).toString('base64url').replace(/[-_]/g,'').slice(0,12).toUpperCase()});
+  const m=u.pathname.match(/^\/api\/device\/([A-Z0-9]+)\/status$/);
+  if(m&&req.method==='GET'){
+    const d=devices.get(m[1]);
+    return json(res,200,{ok:true,connected:!!d,lastSeen:d?.lastSeen||null});
+  }
+  json(res,404,{ok:false,error:'Not found'});
 });
+
+const wss=new WebSocketServer({noServer:true});
+server.on('upgrade',(req,socket,head)=>{
+  try{
+    const u=new URL(req.url,`http://${req.headers.host}`);
+    if(u.pathname!=='/agent')return socket.destroy();
+    const c=(u.searchParams.get('code')||'').toUpperCase();
+    if(!/^[A-Z0-9]{8,32}$/.test(c))return socket.destroy();
+    wss.handleUpgrade(req,socket,head,ws=>{ws.deviceCode=c;wss.emit('connection',ws,req)});
+  }catch(_){socket.destroy()}
+});
+
+wss.on('connection',ws=>{
+  const c=ws.deviceCode,old=devices.get(c);
+  if(old?.ws&&old.ws!==ws)old.ws.close(4000,'Replaced by newer connector');
+  devices.set(c,{ws,connectedAt:Date.now(),lastSeen:Date.now()});
+  ws.send(JSON.stringify({type:'connected',code:c}));
+  ws.on('message',raw=>{
+    try{
+      const msg=JSON.parse(raw.toString()),d=devices.get(c);
+      if(d)d.lastSeen=Date.now();
+      if(msg.type==='tally_result'&&msg.id){
+        const p=pending.get(msg.id);
+        if(!p)return;
+        clearTimeout(p.timer);
+        pending.delete(msg.id);
+        if(msg.error)p.reject(new Error(msg.error));
+        else p.resolve(msg.xml||'');
+      }
+    }catch(_){ }
+  });
+  ws.on('close',()=>{
+    const d=devices.get(c);
+    if(d?.ws===ws)devices.delete(c);
+  });
+  ws.on('error',()=>{});
+});
+
+setInterval(()=>{
+  for(const[id,p]of pending){
+    if(Date.now()-(p.startedAt||Date.now())>REQUEST_TIMEOUT+10000){
+      clearTimeout(p.timer);
+      p.reject(new Error('Request expired'));
+      pending.delete(id);
+    }
+  }
+},30000).unref();
+
 server.listen(PORT,'0.0.0.0',()=>console.log(`Tally relay listening on ${PORT}`));
