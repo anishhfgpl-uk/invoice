@@ -1,17 +1,18 @@
-name: Set Invoice Top Branding
+name: Build Invoice App Enhancements
 
 on:
   push:
     branches: [main]
     paths:
       - '.github/workflows/add-anisht-technologies-brand.yml'
+      - 'tally-connector/live-tally.js'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  set-brand:
+  package-app:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -19,7 +20,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Inject persistent ANISH TECHNOLOGIES top brand
+      - name: Inject ANISH branding and remote Tally connector UI
         shell: bash
         run: |
           python3 - <<'PY'
@@ -27,43 +28,37 @@ jobs:
           import zipfile, os, re
 
           zpath = Path('tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip')
+          js = Path('tally-connector/live-tally.js').read_text(encoding='utf-8')
+          script_marker = 'ANISH_REMOTE_TALLY_CONNECTOR'
+
           with zipfile.ZipFile(zpath, 'r') as zin:
               names = zin.namelist()
               index_name = next((n for n in names if n.rstrip('/') == 'index.html' or n.endswith('/index.html')), None)
               if not index_name:
                   raise SystemExit('index.html not found in invoice package')
-
               index = zin.read(index_name).decode('utf-8')
 
-              # Remove only branding injected by earlier versions of this workflow.
-              index = re.sub(r'\\s*<!-- ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->.*?<!-- /ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->\\s*', '\\n', index, flags=re.I | re.S)
-              index = re.sub(r'<style[^>]*id=["\']anish-technologies-brand[^>]*>.*?</style>\\s*', '', index, flags=re.I | re.S)
-              index = re.sub(r'<div[^>]*id=["\']anish-technologies-brand[^>]*>.*?</div>\\s*', '', index, flags=re.I | re.S)
+              # Remove only our previous injected blocks. Never remove footer/product text.
+              index = re.sub(r'\s*<!-- ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->.*?<!-- /ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->\s*', '\n', index, flags=re.I | re.S)
+              index = re.sub(r'<style[^>]*id=["\']anish-technologies-brand[^>]*>.*?</style>\s*', '', index, flags=re.I | re.S)
+              index = re.sub(r'<div[^>]*id=["\']anish-technologies-brand[^>]*>.*?</div>\s*', '', index, flags=re.I | re.S)
+              index = re.sub(r'\s*<!-- ANISH_REMOTE_TALLY_CONNECTOR -->.*?<!-- /ANISH_REMOTE_TALLY_CONNECTOR -->\s*', '\n', index, flags=re.I | re.S)
 
-              injection = '''<!-- ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->
+              brand = '''<!-- ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->
           <style id="anish-technologies-persistent-brand">
-            body::before{
-              content:"ANISH TECHNOLOGIES" !important;
-              display:block !important;
-              width:100% !important;
-              box-sizing:border-box !important;
-              padding:16px 24px !important;
-              text-align:center !important;
-              font-family:inherit !important;
-              font-size:22px !important;
-              font-weight:800 !important;
-              letter-spacing:.08em !important;
-              line-height:1.2 !important;
-              position:relative !important;
-              z-index:99999 !important;
-            }
+            body::before{content:"ANISH TECHNOLOGIES" !important;display:block !important;width:100% !important;box-sizing:border-box !important;padding:16px 24px !important;text-align:center !important;font-family:inherit !important;font-size:22px !important;font-weight:800 !important;letter-spacing:.08em !important;line-height:1.2 !important;position:relative !important;z-index:99999 !important}
           </style>
           <!-- /ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->'''
+              connector = '<!-- ANISH_REMOTE_TALLY_CONNECTOR -->\n<script data-anishtally="1">' + js.replace('</script>', '<\\/script>') + '</script>\n<!-- /ANISH_REMOTE_TALLY_CONNECTOR -->'
 
               if re.search(r'<head[^>]*>', index, flags=re.I):
-                  index = re.sub(r'(<head[^>]*>)', lambda m: m.group(1) + '\\n' + injection + '\\n', index, count=1, flags=re.I)
+                  index = re.sub(r'(<head[^>]*>)', lambda m: m.group(1) + '\n' + brand + '\n', index, count=1, flags=re.I)
               else:
-                  index = injection + '\\n' + index
+                  index = brand + '\n' + index
+              if re.search(r'</body>', index, flags=re.I):
+                  index = re.sub(r'(</body>)', connector + '\n\\1', index, count=1, flags=re.I)
+              else:
+                  index += '\n' + connector
 
               tmp = zpath.with_suffix('.tmp.zip')
               with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zout:
@@ -72,12 +67,12 @@ jobs:
           os.replace(tmp, zpath)
           PY
 
-      - name: Commit branding update
+      - name: Commit packaged app
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
           git diff --cached --quiet && exit 0
-          git commit -m "Persist ANISH TECHNOLOGIES top branding"
+          git commit -m "Package remote Tally connector and import options"
           git push origin HEAD:main
