@@ -20,7 +20,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Inspect Tally test code inside ZIP
+      - name: Inspect Tally collection function inside ZIP
         shell: bash
         run: |
           set -euo pipefail
@@ -28,59 +28,35 @@ jobs:
           rm -rf inspect
           mkdir inspect
           unzip -q "$ZIP" -d inspect
-          echo '=== Matching files / strings ==='
-          grep -RniE --exclude-dir=node_modules --exclude='*.map' 'Test Tally|Office connector timeout|Remote Office Code|direct connector URL|tally-relay|9101|/agent' inspect | head -n 250 || true
-
-      - name: Restore clean invoice application ZIP
-        shell: bash
-        run: |
-          set -euo pipefail
-          ZIP='tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip'
-          rm -rf app
-          mkdir app
-          unzip -q "$ZIP" -d app
-          if [ -d app/tallysync-pro ]; then
-            shopt -s dotglob
-            mv app/tallysync-pro/* app/
-            rmdir app/tallysync-pro
-          fi
-          rm -rf app/public/tally-connector
           python3 - <<'PY'
           from pathlib import Path
           import re
-          p = Path('app/index.html')
-          s = p.read_text(encoding='utf-8')
-          s = re.sub(r'<!-- TALLYSYNC_REMOTE_LIVE_V\d+ -->', '', s, flags=re.I)
-          s = re.sub(r'<script[^>]+src=["\']\./tally-connector/[^"\']+["\'][^>]*></script>', '', s, flags=re.I)
-          p.write_text(s, encoding='utf-8')
+          hits=[]
+          for p in Path('inspect').rglob('*'):
+              if not p.is_file() or 'node_modules' in p.parts or p.suffix in {'.map'}: continue
+              try: s=p.read_text(encoding='utf-8')
+              except: continue
+              if 'function collection' in s or 'const collection' in s or 'async function collection' in s:
+                  hits.append((p,s))
+          print('=== COLLECTION DEFINITIONS ===')
+          for p,s in hits:
+              print(f'FILE: {p}')
+              for m in re.finditer(r'(?:async\s+)?function\s+collection|(?:const|let|var)\s+collection',s):
+                  a=max(0,m.start()-1800); b=min(len(s),m.end()+5000)
+                  print(s[a:b])
+          print('=== LOAD COMPANIES ===')
+          for p,s in hits:
+              pass
+          for p in Path('inspect').rglob('*'):
+              if not p.is_file() or 'node_modules' in p.parts or p.suffix in {'.map'}: continue
+              try: s=p.read_text(encoding='utf-8')
+              except: continue
+              if 'loadCompanies' in s:
+                  print(f'FILE: {p}')
+                  for m in re.finditer(r'(?:async\s+)?function\s+loadCompanies|(?:const|let|var)\s+loadCompanies',s):
+                      a=max(0,m.start()-1000); b=min(len(s),m.end()+3500)
+                      print(s[a:b])
           PY
-          for cfg in app/vite.config.*; do
-            [ -f "$cfg" ] || continue
-            python3 - "$cfg" <<'PY'
-          from pathlib import Path
-          import re, sys
-          p=Path(sys.argv[1])
-          s=p.read_text(encoding='utf-8')
-          if 'base:' not in s:
-              s=s.replace('defineConfig({', "defineConfig({\n  base: '/invoice/',", 1)
-          else:
-              s=re.sub(r"base:\s*['\"][^'\"]*['\"]", "base: '/invoice/'", s, count=1)
-          p.write_text(s, encoding='utf-8')
-          PY
-          done
-          rm -f "$ZIP"
-          (cd app && zip -q -r "../$ZIP" .)
 
-      - name: Commit clean ZIP
-        shell: bash
-        run: |
-          set -euo pipefail
-          ZIP='tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip'
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add "$ZIP"
-          if git diff --cached --quiet; then
-            exit 0
-          fi
-          git commit -m 'Restore clean invoice app after blank page'
-          git push origin HEAD:main
+      - name: Stop after inspection
+        run: echo 'Inspection complete'
