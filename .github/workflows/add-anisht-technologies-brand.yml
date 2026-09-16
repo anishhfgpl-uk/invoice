@@ -21,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Package branding, Tally Connect and connector download
+      - name: Package branding and Tally Connect
         shell: bash
         run: |
           set -e
@@ -30,83 +30,55 @@ jobs:
           import zipfile, os, re
 
           zpath = Path('tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip')
-          if not zpath.exists():
-              raise SystemExit('Invoice ZIP not found')
           connector = Path('tally-connector/safe-live.js')
-          if not connector.exists():
-              raise SystemExit('tally-connector/safe-live.js not found')
-          connector_ui = '''(()=>{
-          function addDownload(){
-            if(document.getElementById('anish-connector-download')) return;
-            const a=document.createElement('a');
-            a.id='anish-connector-download';
-            a.href='https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/tally-connector.mjs';
-            a.download='anish-tally-connector.mjs';
-            a.target='_blank';
-            a.rel='noopener';
-            a.textContent='⬇ Download Tally Connector';
-            a.style.cssText='position:fixed;right:24px;bottom:78px;z-index:99999;display:block;padding:12px 18px;border:0;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial,sans-serif;text-decoration:none;box-shadow:0 8px 25px #0003';
-            document.body.appendChild(a);
-          }
-          if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addDownload);else addDownload();
-          })();
-          '''
+          if not zpath.exists(): raise SystemExit('Invoice ZIP not found')
+          if not connector.exists(): raise SystemExit('safe-live.js not found')
 
           with zipfile.ZipFile(zpath, 'r') as zin:
               names = zin.namelist()
               index_name = next((n for n in names if n.rstrip('/') == 'index.html' or n.endswith('/index.html')), None)
-              if not index_name:
-                  raise SystemExit('index.html not found in invoice package')
+              if not index_name: raise SystemExit('index.html not found')
               files = {n: zin.read(n) for n in names}
               index = files[index_name].decode('utf-8', errors='replace')
 
-              # Remove files and tags from earlier broken connector attempts.
+              # Remove all previous connector attempts and their external script tags.
               for n in list(files):
-                  if n.endswith('tally-connector-live.js') or n.endswith('live-tally.js') or n.endswith('invoice-connector-ui.js'):
+                  if any(n.endswith(x) for x in ('tally-connector-live.js','live-tally.js','invoice-connector-ui.js')):
                       del files[n]
-              index = re.sub(r'<!--\s*ANISH_REMOTE_TALLY_CONNECTOR\s*-->.*?<!--\s*/ANISH_REMOTE_TALLY_CONNECTOR\s*-->', '', index, flags=re.I|re.S)
-              index = re.sub(r'<script[^>]*(?:tally-connector-live|live-tally|invoice-connector-ui)\.js[^>]*>.*?</script>\s*', '', index, flags=re.I|re.S)
-              index = re.sub(r'<script[^>]*(?:data-anishtally|ANISH_REMOTE_TALLY_CONNECTOR)[^>]*>.*?</script>\s*', '', index, flags=re.I|re.S)
+              index = re.sub(r'(?is)<!--\s*ANISH_REMOTE_TALLY_CONNECTOR\s*-->.*?<!--\s*/ANISH_REMOTE_TALLY_CONNECTOR\s*-->','',index)
+              index = re.sub(r'(?is)<script[^>]*(?:tally-connector-live|live-tally|invoice-connector-ui)\.js[^>]*>.*?</script>\s*','',index)
+              index = re.sub(r'(?is)function\s+brand\s*\(\)\s*\{.*?function\s+panel\s*\(\)', '', index)
+              index = re.sub(r'(?is)window\.TallySyncConnector.*?(?:\n|;)', '', index)
 
-              # Remove literal connector fragments left by previous bad injection.
-              for pat in [
-                  r'(?is)try\s*\{\s*const\s+raw\s*=\s*await\s+postTally\s*\(.*?\}\s*\)\s*\(\s*\)\s*;?',
-                  r'(?is)function\s+brand\s*\(\)\s*\{.*?\}\s*function\s+panel\s*\(\)',
-                  r'(?is)function\s+panel\s*\(\)\s*\{.*?\}\s*if\s*\(document\.readyState',
-                  r'(?is)window\.TallySyncConnector',
-                  r'(?is)ts-ip-panel',
-                  r'(?is)postTally\s*\(xml\)',
-              ]:
-                  index = re.sub(pat, '', index)
-
-              # Remove previous branding and re-add only ANISH TECHNOLOGIES.
-              index = re.sub(r'<!--\s*ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND\s*-->.*?<!--\s*/ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND\s*-->', '', index, flags=re.I|re.S)
-              index = re.sub(r'<style[^>]*id=["\']anish-technologies-(?:brand|persistent-brand)[^>]*>.*?</style>\s*', '', index, flags=re.I|re.S)
-              index = re.sub(r'<div[^>]*id=["\']anish-technologies-brand[^>]*>.*?</div>\s*', '', index, flags=re.I|re.S)
-
+              # Keep only one ANISH TECHNOLOGIES top brand.
+              index = re.sub(r'(?is)<!--\s*ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND\s*-->.*?<!--\s*/ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND\s*-->','',index)
+              index = re.sub(r'(?is)<style[^>]*id=["\']anish-technologies-(?:brand|persistent-brand)[^>]*>.*?</style>\s*','',index)
               brand = '''<!-- ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->
           <style id="anish-technologies-persistent-brand">
           body::before{content:"ANISH TECHNOLOGIES" !important;display:block !important;width:100% !important;box-sizing:border-box !important;background:#0b1220 !important;color:#fff !important;text-align:center !important;padding:16px 12px !important;font-family:Arial,Helvetica,sans-serif !important;font-size:clamp(24px,4vw,38px) !important;font-weight:900 !important;letter-spacing:3px !important;line-height:1.1 !important;border-bottom:3px solid #2563eb !important;position:relative !important;z-index:2147483000 !important}
           </style>
           <!-- /ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->'''
-              pos = index.lower().find('</head>')
-              index = (index[:pos] + brand + '\n' + index[pos:]) if pos >= 0 else brand + '\n' + index
+              p=index.lower().find('</head>')
+              index=(index[:p]+brand+'\n'+index[p:]) if p>=0 else brand+'\n'+index
 
-              # Add the real connector source and a tiny UI-only download helper.
-              files[index_name] = index.encode('utf-8')
-              files['tally-connector/safe-live.js'] = connector.read_bytes()
-              files['tally-connector/tally-connector.mjs'] = Path('tally-connector/tally-connector.mjs').read_bytes()
-              files['tally-connector/invoice-connector-ui.js'] = connector_ui.encode('utf-8')
-              tag = '<script src="./tally-connector/safe-live.js" defer></script><script src="./tally-connector/invoice-connector-ui.js" defer></script>'
-              if '</body>' in index.lower():
-                  p = index.lower().rfind('</body>')
-                  files[index_name] = (index[:p] + tag + '\n' + index[p:]).encode('utf-8')
+              # IMPORTANT: inline the connector into index.html. The old build copied the JS
+              # beside the source ZIP but Vite's dist did not necessarily publish that file.
+              connector_js=connector.read_text(encoding='utf-8')
+              connector_js=connector_js.replace('</script>','<\\/script>')
+              inline='<script id="anish-tally-connector">\n'+connector_js+'\n</script>'
+              p=index.lower().rfind('</body>')
+              index=(index[:p]+inline+'\n'+index[p:]) if p>=0 else index+'\n'+inline
 
-              tmp = zpath.with_suffix('.clean.tmp.zip')
-              with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zout:
-                  for n, data in files.items():
-                      zout.writestr(n, data)
-              os.replace(tmp, zpath)
+              # Small download link for the office connector; this does not replace app UI.
+              download_js='''<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/tally-connector.mjs";a.download="anish-tally-connector.mjs";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>'''
+              p=index.lower().rfind('</body>')
+              index=(index[:p]+download_js+'\n'+index[p:]) if p>=0 else index+'\n'+download_js
+
+              files[index_name]=index.encode('utf-8')
+              tmp=zpath.with_suffix('.clean.tmp.zip')
+              with zipfile.ZipFile(tmp,'w',zipfile.ZIP_DEFLATED) as zout:
+                  for n,data in files.items(): zout.writestr(n,data)
+              os.replace(tmp,zpath)
           PY
 
       - name: Commit packaged app
@@ -116,9 +88,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
-          if git diff --cached --quiet; then
-            echo 'No packaging changes.'
-            exit 0
-          fi
-          git commit -m "Enable Tally Connect and connector download"
+          if git diff --cached --quiet; then echo 'No packaging changes.'; exit 0; fi
+          git commit -m "Fix live Tally Connect injection"
           git push origin HEAD:main
