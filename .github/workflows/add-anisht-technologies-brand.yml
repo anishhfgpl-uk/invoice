@@ -42,28 +42,34 @@ jobs:
               index_name = next((n for n in names if n.rstrip('/') == 'index.html' or n.endswith('/index.html')), None)
               if not index_name:
                   raise SystemExit('index.html not found in invoice package')
-              index = zin.read(index_name).decode('utf-8')
 
+              index = zin.read(index_name).decode('utf-8')
               index = remove_marker(index, '<!-- ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->', '<!-- /ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->')
               index = remove_marker(index, '<!-- ANISH_REMOTE_TALLY_CONNECTOR -->', '<!-- /ANISH_REMOTE_TALLY_CONNECTOR -->')
+              index = re.sub(r'<script[^>]*data-anishtally=["\']1["\'][^>]*>.*?</script>\s*', '', index, flags=re.I | re.S)
               index = re.sub(r'<style[^>]*id=["\']anish-technologies-brand[^>]*>.*?</style>\s*', '', index, flags=re.I | re.S)
               index = re.sub(r'<div[^>]*id=["\']anish-technologies-brand[^>]*>.*?</div>\s*', '', index, flags=re.I | re.S)
 
               brand = '''<!-- ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->
           <style id="anish-technologies-persistent-brand">
-          body::before{content:"ANISH TECHNOLOGIES" !important;display:block !important;width:100% !important;box-sizing:border-box !important;padding:16px 24px !important;text-align:center !important;font-family:inherit !important;font-size:22px !important;font-weight:800 !important;letter-spacing:.08em !important;line-height:1.2 !important;position:relative !important;z-index:99999 !important}
+          body::before{content:"ANISH TECHNOLOGIES" !important;display:block !important;width:100% !important;box-sizing:border-box !important;padding:16px 24px !important;text-align:center !important;font-family:Arial,Helvetica,sans-serif !important;font-size:22px !important;font-weight:800 !important;letter-spacing:.08em !important;line-height:1.2 !important;position:relative !important;z-index:99999 !important}
           </style>
           <!-- /ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->'''
-              connector = '<!-- ANISH_REMOTE_TALLY_CONNECTOR -->\n<script data-anishtally="1">' + js + '</script>\n<!-- /ANISH_REMOTE_TALLY_CONNECTOR -->'
 
-              if '</head>' in index.lower():
-                  pos = index.lower().index('</head>')
+              connector = '''<!-- ANISH_REMOTE_TALLY_CONNECTOR -->
+          <script src="./tally-connector-live.js" defer></script>
+          <!-- /ANISH_REMOTE_TALLY_CONNECTOR -->'''
+
+              lower = index.lower()
+              pos = lower.find('</head>')
+              if pos >= 0:
                   index = index[:pos] + brand + '\n' + index[pos:]
               else:
                   index = brand + '\n' + index
 
-              if '</body>' in index.lower():
-                  pos = index.lower().index('</body>')
+              lower = index.lower()
+              pos = lower.find('</body>')
+              if pos >= 0:
                   index = index[:pos] + connector + '\n' + index[pos:]
               else:
                   index += '\n' + connector
@@ -72,7 +78,8 @@ jobs:
               with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zout:
                   for n in names:
                       zout.writestr(n, index.encode('utf-8') if n == index_name else zin.read(n))
-          os.replace(tmp, zpath)
+                  zout.writestr('tally-connector-live.js', js)
+              os.replace(tmp, zpath)
           PY
 
       - name: Commit packaged app
@@ -82,5 +89,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
           git diff --cached --quiet && exit 0
-          git commit -m "Package remote Tally connector and import options"
+          git commit -m "Fix remote Tally connector script injection"
           git push origin HEAD:main
