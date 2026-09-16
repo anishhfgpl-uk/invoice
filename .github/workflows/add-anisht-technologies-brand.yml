@@ -1,4 +1,4 @@
-name: Remove Invoice Top Branding
+name: Set Invoice Top Branding
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  remove-brand:
+  set-brand:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -19,7 +19,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Remove top branding from invoice package
+      - name: Keep only ANISH TECHNOLOGIES at the top
         shell: bash
         run: |
           python3 - <<'PY'
@@ -35,14 +35,22 @@ jobs:
 
               index = zin.read(index_name).decode('utf-8')
 
-              # Remove the previously injected top-brand block.
+              # Remove previously injected top-brand block.
               index = re.sub(r'<!-- ANISH_TECHNOLOGIES_TOP_BRAND -->.*?</style>\s*<div id="anish-technologies-brand">.*?</div>\s*', '', index, flags=re.I | re.S)
               index = re.sub(r'<style[^>]*id=["\']anish-technologies-brand["\'][^>]*>.*?</style>\s*', '', index, flags=re.I | re.S)
               index = re.sub(r'<div[^>]*id=["\']anish-technologies-brand["\'][^>]*>.*?</div>\s*', '', index, flags=re.I | re.S)
 
-              # Remove only the first visible top occurrences, preserving the rest of the Invoice Repository.
+              # Remove the top branding text variants only.
               for text in ('ANISH TECHNOLOGIES', 'TallySync Pro • Digital Solutions', 'TallySync Pro Digital Solutions', 'TallySync Pro - Digital Solutions'):
                   index = index.replace(text, '', 1)
+
+              # Add ANISH TECHNOLOGIES back as the only custom top brand.
+              brand_style = '''<style id="anish-technologies-brand">#anish-technologies-brand{font-size:22px;font-weight:800;letter-spacing:.08em;padding:16px 24px;text-align:center}</style>'''
+              brand_html = '<div id="anish-technologies-brand">ANISH TECHNOLOGIES</div>'
+              if re.search(r'<body[^>]*>', index, flags=re.I):
+                  index = re.sub(r'(<body[^>]*>)', r'\1' + brand_style + brand_html, index, count=1, flags=re.I)
+              else:
+                  index = brand_style + brand_html + index
 
               tmp = zpath.with_suffix('.tmp.zip')
               with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zout:
@@ -51,12 +59,12 @@ jobs:
           os.replace(tmp, zpath)
           PY
 
-      - name: Commit removal
+      - name: Commit branding update
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
           git diff --cached --quiet && exit 0
-          git commit -m "Remove TallySync Pro top branding"
+          git commit -m "Keep ANISH TECHNOLOGIES as top branding"
           git push origin HEAD:main
