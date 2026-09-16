@@ -19,7 +19,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Remove broken connector injection and keep requested branding
+      - name: Clean broken connector text and keep only requested branding
         shell: bash
         run: |
           set -e
@@ -37,17 +37,42 @@ jobs:
               if not index_name:
                   raise SystemExit('index.html not found in invoice package')
 
-              index = zin.read(index_name).decode('utf-8')
+              files = {n: zin.read(n) for n in names}
+              index = files[index_name].decode('utf-8', errors='replace')
 
-              # Remove all connector artifacts that were injected by previous builds.
-              index = re.sub(r'<!--\\s*ANISH_REMOTE_TALLY_CONNECTOR\\s*-->.*?<!--\\s*/ANISH_REMOTE_TALLY_CONNECTOR\\s*-->', '', index, flags=re.I|re.S)
-              index = re.sub(r'<script[^>]*(?:tally-connector-live|live-tally)\\.js[^>]*>.*?</script>\\s*', '', index, flags=re.I|re.S)
-              index = re.sub(r'<script[^>]*(?:data-anishtally|ANISH_REMOTE_TALLY_CONNECTOR)[^>]*>.*?</script>\\s*', '', index, flags=re.I|re.S)
+              # Remove connector files from previous attempts.
+              for n in list(files):
+                  if n.endswith('tally-connector-live.js') or n.endswith('live-tally.js'):
+                      del files[n]
+
+              # Remove the known injected connector script/tag/marker forms.
+              index = re.sub(r'<!--\s*ANISH_REMOTE_TALLY_CONNECTOR\s*-->.*?<!--\s*/ANISH_REMOTE_TALLY_CONNECTOR\s*-->', '', index, flags=re.I|re.S)
+              index = re.sub(r'<script[^>]*(?:tally-connector-live|live-tally)\.js[^>]*>.*?</script>\s*', '', index, flags=re.I|re.S)
+              index = re.sub(r'<script[^>]*(?:data-anishtally|ANISH_REMOTE_TALLY_CONNECTOR)[^>]*>.*?</script>\s*', '', index, flags=re.I|re.S)
+
+              # The previous bad build sometimes pasted the connector IIFE as literal page text.
+              # Remove that exact connector payload without touching the application's own code.
+              bad_start = re.search(r'(?is)try\s*\{\s*const\s+raw\s*=\s*await\s+postTally\s*\(', index)
+              if bad_start:
+                  bad_end = re.search(r'(?is)\}\s*\)\s*\(\s*\)\s*;?', index[bad_start.end():])
+                  if bad_end:
+                      end = bad_start.end() + bad_end.end()
+                      index = index[:bad_start.start()] + index[end:]
+
+              # Remove any remaining obvious fragments from that injected payload when rendered as text.
+              for pat in [
+                  r'(?is)function\s+brand\s*\(\)\s*\{.*?\}\s*function\s+panel\s*\(\)',
+                  r'(?is)function\s+panel\s*\(\)\s*\{.*?\}\s*if\s*\(document\.readyState',
+                  r'(?is)window\.TallySyncConnector',
+                  r'(?is)ts-ip-panel',
+                  r'(?is)postTally\s*\(xml\)',
+              ]:
+                  index = re.sub(pat, '', index)
 
               # Remove old injected brand variants, then add only the requested top name.
-              index = re.sub(r'<!--\\s*ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND\\s*-->.*?<!--\\s*/ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND\\s*-->', '', index, flags=re.I|re.S)
-              index = re.sub(r'<style[^>]*id=["\']anish-technologies-(?:brand|persistent-brand)[^>]*>.*?</style>\\s*', '', index, flags=re.I|re.S)
-              index = re.sub(r'<div[^>]*id=["\']anish-technologies-brand[^>]*>.*?</div>\\s*', '', index, flags=re.I|re.S)
+              index = re.sub(r'<!--\s*ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND\s*-->.*?<!--\s*/ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND\s*-->', '', index, flags=re.I|re.S)
+              index = re.sub(r'<style[^>]*id=["\']anish-technologies-(?:brand|persistent-brand)[^>]*>.*?</style>\s*', '', index, flags=re.I|re.S)
+              index = re.sub(r'<div[^>]*id=["\']anish-technologies-brand[^>]*>.*?</div>\s*', '', index, flags=re.I|re.S)
 
               brand = '''<!-- ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->
           <style id="anish-technologies-persistent-brand">
@@ -61,13 +86,12 @@ jobs:
               else:
                   index = brand + '\n' + index
 
+              files[index_name] = index.encode('utf-8')
+
               tmp = zpath.with_suffix('.clean.tmp.zip')
               with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zout:
-                  for n in names:
-                      # Never carry the broken injected connector JS into the deployed package.
-                      if n.endswith('tally-connector-live.js') or n.endswith('live-tally.js'):
-                          continue
-                      zout.writestr(n, index.encode('utf-8') if n == index_name else zin.read(n))
+                  for n, data in files.items():
+                      zout.writestr(n, data)
               os.replace(tmp, zpath)
           PY
 
@@ -82,5 +106,5 @@ jobs:
             echo 'No packaging changes.'
             exit 0
           fi
-          git commit -m "Remove broken remote Tally text injection"
+          git commit -m "Clean literal Tally connector code from invoice package"
           git push origin HEAD:main
