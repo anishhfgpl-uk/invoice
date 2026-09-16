@@ -7,6 +7,7 @@ on:
       - '.github/workflows/add-anisht-technologies-brand.yml'
       - 'tally-connector/safe-live.js'
       - 'tally-connector/tally-connector.mjs'
+      - 'tally-connector/START-TALLY-CONNECTOR.cmd'
   workflow_dispatch:
 
 permissions:
@@ -41,7 +42,6 @@ jobs:
               files = {n: zin.read(n) for n in names}
               index = files[index_name].decode('utf-8', errors='replace')
 
-              # Remove all previous connector attempts and their external script tags.
               for n in list(files):
                   if any(n.endswith(x) for x in ('tally-connector-live.js','live-tally.js','invoice-connector-ui.js')):
                       del files[n]
@@ -50,7 +50,6 @@ jobs:
               index = re.sub(r'(?is)function\s+brand\s*\(\)\s*\{.*?function\s+panel\s*\(\)', '', index)
               index = re.sub(r'(?is)window\.TallySyncConnector.*?(?:\n|;)', '', index)
 
-              # Keep only one ANISH TECHNOLOGIES top brand.
               index = re.sub(r'(?is)<!--\s*ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND\s*-->.*?<!--\s*/ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND\s*-->','',index)
               index = re.sub(r'(?is)<style[^>]*id=["\']anish-technologies-(?:brand|persistent-brand)[^>]*>.*?</style>\s*','',index)
               brand = '''<!-- ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->
@@ -61,16 +60,12 @@ jobs:
               p=index.lower().find('</head>')
               index=(index[:p]+brand+'\n'+index[p:]) if p>=0 else brand+'\n'+index
 
-              # IMPORTANT: inline the connector into index.html. The old build copied the JS
-              # beside the source ZIP but Vite's dist did not necessarily publish that file.
-              connector_js=connector.read_text(encoding='utf-8')
-              connector_js=connector_js.replace('</script>','<\\/script>')
+              connector_js=connector.read_text(encoding='utf-8').replace('</script>','<\\/script>')
               inline='<script id="anish-tally-connector">\n'+connector_js+'\n</script>'
               p=index.lower().rfind('</body>')
               index=(index[:p]+inline+'\n'+index[p:]) if p>=0 else index+'\n'+inline
 
-              # Small download link for the office connector; this does not replace app UI.
-              download_js='''<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/tally-connector.mjs";a.download="anish-tally-connector.mjs";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>'''
+              download_js='''<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>'''
               p=index.lower().rfind('</body>')
               index=(index[:p]+download_js+'\n'+index[p:]) if p>=0 else index+'\n'+download_js
 
@@ -89,5 +84,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
           if git diff --cached --quiet; then echo 'No packaging changes.'; exit 0; fi
-          git commit -m "Fix live Tally Connect injection"
+          git commit -m "Package office Tally connector launcher"
           git push origin HEAD:main
