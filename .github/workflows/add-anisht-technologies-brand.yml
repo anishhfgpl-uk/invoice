@@ -50,8 +50,12 @@ jobs:
               for n in list(files):
                   if any(n.endswith(x) for x in ('tally-connector-live.js','live-tally.js','invoice-connector-ui.js','safe-live.js','company-list-fix.js')):
                       del files[n]
+
+              # Remove old connector blocks, including inline copies already embedded in the source ZIP.
               index = re.sub(r'(?is)<!--\s*ANISH_REMOTE_TALLY_CONNECTOR\s*-->.*?<!--\s*/ANISH_REMOTE_TALLY_CONNECTOR\s*-->','',index)
               index = re.sub(r'(?is)<script[^>]*(?:tally-connector-live|live-tally|invoice-connector-ui|safe-live|company-list-fix)\.js[^>]*>.*?</script>\s*','',index)
+              index = re.sub(r'(?is)<script[^>]*id=["\'](?:anish-tally-connector|anish-company-list-fix)["\'][^>]*>.*?</script>\s*','',index)
+              index = re.sub(r'(?is)<script[^>]*(?:id=["\'](?:anish-tally-connector|anish-company-list-fix)["\']|id=["\']tallysync[^"\']*["\'])[^>]*>.*?</script>\s*','',index)
               index = re.sub(r'(?is)function\s+brand\s*\(\)\s*\{.*?function\s+panel\s*\(\)', '', index)
               index = re.sub(r'(?is)window\.TallySyncConnector.*?(?:\n|;)', '', index)
 
@@ -90,5 +94,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
           if git diff --cached --quiet; then echo 'No packaging changes.'; exit 0; fi
-          git commit -m "Package live Tally Connect directly into app"
+          git commit -m "Remove duplicate Tally connector and rebuild company selector"
           git push origin HEAD:main
