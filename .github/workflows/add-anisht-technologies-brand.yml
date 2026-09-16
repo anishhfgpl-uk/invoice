@@ -19,14 +19,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Add ANISH TECHNOLOGIES header to invoice app package
+      - name: Make invoice header a single ANISH TECHNOLOGIES line
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import zipfile
-          import tempfile
           import os
+          import re
 
           zpath = Path('tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip')
           marker = 'ANISH_TECHNOLOGIES_TOP_BRAND'
@@ -36,10 +36,13 @@ jobs:
               if not index_name:
                   raise SystemExit('index.html not found in invoice package')
               index = zin.read(index_name).decode('utf-8')
-              if marker in index:
-                  raise SystemExit('Brand already present; nothing to do')
-              brand = '''<!-- ANISH_TECHNOLOGIES_TOP_BRAND -->\n<style id="anish-technologies-brand">\n#anish-technologies-brand{width:100%;box-sizing:border-box;background:linear-gradient(135deg,#0b1220,#172554);color:#fff;text-align:center;padding:18px 16px 16px;font-family:Arial,Helvetica,sans-serif;border-bottom:3px solid #2563eb;box-shadow:0 2px 10px rgba(0,0,0,.18);position:relative;z-index:2147483000}\n#anish-technologies-brand .at-name{font-size:clamp(24px,4vw,38px);font-weight:900;letter-spacing:3px;line-height:1.1}\n#anish-technologies-brand .at-sub{font-size:12px;font-weight:600;letter-spacing:2px;opacity:.82;margin-top:6px;text-transform:uppercase}\n</style>\n<div id="anish-technologies-brand"><div class="at-name">ANISH TECHNOLOGIES</div><div class="at-sub">TallySync Pro • Digital Solutions</div></div>\n'''
+
+              # Remove the previous two-line injected branding, if present.
+              index = re.sub(r'<!-- ANISH_TECHNOLOGIES_TOP_BRAND -->.*?<div id="anish-technologies-brand">.*?</div>\s*', '', index, flags=re.I | re.S)
+
+              brand = '''<!-- ANISH_TECHNOLOGIES_TOP_BRAND -->\n<style id="anish-technologies-brand">\n#anish-technologies-brand{width:100%;box-sizing:border-box;background:linear-gradient(135deg,#0b1220,#172554);color:#fff;text-align:center;padding:14px 16px;font-family:Arial,Helvetica,sans-serif;border-bottom:3px solid #2563eb;box-shadow:0 2px 10px rgba(0,0,0,.18);position:relative;z-index:2147483000}\n#anish-technologies-brand .at-name{font-size:clamp(24px,4vw,38px);font-weight:900;letter-spacing:3px;line-height:1.1}\n</style>\n<div id="anish-technologies-brand"><div class="at-name">ANISH TECHNOLOGIES</div></div>\n'''
               index = index.replace('</body>', brand + '</body>', 1) if '</body>' in index else brand + index
+
               tmp = zpath.with_suffix('.tmp.zip')
               with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zout:
                   for n in names:
@@ -48,12 +51,12 @@ jobs:
           os.replace(tmp, zpath)
           PY
 
-      - name: Commit brand change
+      - name: Commit header change
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
           git diff --cached --quiet && exit 0
-          git commit -m "Add ANISH TECHNOLOGIES top branding to invoice app"
+          git commit -m "Make invoice header single-line ANISH TECHNOLOGIES"
           git push origin HEAD:main
