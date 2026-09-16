@@ -19,22 +19,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Remove ANISH TECHNOLOGIES header
+      - name: Remove top branding from invoice package
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import zipfile, os, re
+
           zpath = Path('tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip')
           with zipfile.ZipFile(zpath, 'r') as zin:
               names = zin.namelist()
               index_name = next((n for n in names if n.rstrip('/') == 'index.html' or n.endswith('/index.html')), None)
               if not index_name:
                   raise SystemExit('index.html not found in invoice package')
+
               index = zin.read(index_name).decode('utf-8')
+
+              # Remove the injected branding block if present.
               index = re.sub(r'<!-- ANISH_TECHNOLOGIES_TOP_BRAND -->.*?</style>\s*<div id="anish-technologies-brand">.*?</div>\s*', '', index, flags=re.I | re.S)
-              index = re.sub(r'<div id="anish-technologies-brand">.*?</div>\s*', '', index, flags=re.I | re.S)
-              index = re.sub(r'<style id="anish-technologies-brand">.*?</style>\s*', '', index, flags=re.I | re.S)
+              index = re.sub(r'<style[^>]*id=["\']anish-technologies-brand["\'][^>]*>.*?</style>\s*', '', index, flags=re.I | re.S)
+              index = re.sub(r'<div[^>]*id=["\']anish-technologies-brand["\'][^>]*>.*?</div>\s*', '', index, flags=re.I | re.S)
+
+              # Fallback: remove only the first visible occurrences (the top header),
+              # leaving the rest of the Invoice Repository untouched.
+              index = index.replace('ANISH TECHNOLOGIES', '', 1)
+              index = index.replace('TallySync Pro • Digital Solutions', '', 1)
+
               tmp = zpath.with_suffix('.tmp.zip')
               with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zout:
                   for n in names:
@@ -49,5 +59,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
           git diff --cached --quiet && exit 0
-          git commit -m "Remove ANISH TECHNOLOGIES top header"
+          git commit -m "Remove visible top invoice branding"
           git push origin HEAD:main
