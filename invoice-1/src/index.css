@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@media print {
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+
+  /* Hide navigation, footer and backdrops during print */
+  nav, footer, .print\:hidden {
+    display: none !important;
+  }
+}
