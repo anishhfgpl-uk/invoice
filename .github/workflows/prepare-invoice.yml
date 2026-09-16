@@ -6,8 +6,6 @@ on:
       - main
     paths:
       - '.github/workflows/prepare-invoice.yml'
-      - 'tally-connector/**'
-      - 'relay/**'
   workflow_dispatch:
 
 permissions:
@@ -22,12 +20,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Patch invoice ZIP with Tally connector
+      - name: Restore clean invoice application ZIP
         shell: bash
         run: |
           set -euo pipefail
           ZIP='tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip'
-          rm -rf app prepared.zip
+          rm -rf app
           mkdir app
           unzip -q "$ZIP" -d app
           if [ -d app/tallysync-pro ]; then
@@ -35,44 +33,39 @@ jobs:
             mv app/tallysync-pro/* app/
             rmdir app/tallysync-pro
           fi
-          mkdir -p app/public/tally-connector
-          cp tally-connector/tally-connector.mjs app/public/tally-connector/
-          cp tally-connector/start-connector.bat app/public/tally-connector/
-          cp tally-connector/safe-live.js app/public/tally-connector/
-          cp tally-connector/whatsapp-ageing.js app/public/tally-connector/
-          cp relay/server.mjs app/public/tally-connector/relay-server.mjs
 
+          # Remove connector/branding injections that were causing the blank page.
+          rm -rf app/public/tally-connector
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path('app/index.html')
           s = p.read_text(encoding='utf-8')
-          marker = '<!-- TALLYSYNC_REMOTE_LIVE_V5 -->'
-          tag = marker + '<script src="./tally-connector/safe-live.js"></script>'
-          # Remove older connector injections so they cannot hide the application UI.
-          import re
-          s = re.sub(r'<script[^>]+src=["\']\./tally-connector/(?:live-tally|hide-old-tally|brand-fix)\.js["\'][^>]*></script>', '', s, flags=re.I)
-          s = re.sub(r'<!-- TALLYSYNC_REMOTE_LIVE_V4 -->', '', s)
-          if marker not in s:
-              s = s.replace('</head>', tag + '</head>', 1)
+          s = re.sub(r'<!-- TALLYSYNC_REMOTE_LIVE_V\d+ -->', '', s, flags=re.I)
+          s = re.sub(r'<script[^>]+src=["\']\./tally-connector/[^"\']+["\'][^>]*></script>', '', s, flags=re.I)
           p.write_text(s, encoding='utf-8')
           PY
 
-          # The app is published behind Cloudflare at /invoice/.
-          for cfg in list(Path('app').glob('vite.config.*')):
-              text = cfg.read_text(encoding='utf-8')
-              if 'base:' not in text:
-                  text = text.replace('defineConfig({', "defineConfig({\n  base: '/invoice/',", 1)
-              else:
-                  import re
-                  text = re.sub(r"base:\s*['\"][^'\"]*['\"]", "base: '/invoice/'", text, count=1)
-              cfg.write_text(text, encoding='utf-8')
+          # Keep the site working under https://anish-tech.online/invoice/.
+          for cfg in app/vite.config.*; do
+            [ -f "$cfg" ] || continue
+            python3 - "$cfg" <<'PY'
+          from pathlib import Path
+          import re, sys
+          p=Path(sys.argv[1])
+          s=p.read_text(encoding='utf-8')
+          if 'base:' not in s:
+              s=s.replace('defineConfig({', "defineConfig({\n  base: '/invoice/',", 1)
+          else:
+              s=re.sub(r"base:\s*['\"][^'\"]*['\"]", "base: '/invoice/'", s, count=1)
+          p.write_text(s, encoding='utf-8')
+          PY
+          done
 
-          test -f app/public/tally-connector/safe-live.js
-          grep -q 'TALLYSYNC_REMOTE_LIVE_V5' app/index.html
           rm -f "$ZIP"
           (cd app && zip -q -r "../$ZIP" .)
 
-      - name: Commit patched ZIP
+      - name: Commit clean ZIP
         shell: bash
         run: |
           set -euo pipefail
@@ -83,5 +76,5 @@ jobs:
           if git diff --cached --quiet; then
             exit 0
           fi
-          git commit -m 'Restore invoice application UI'
+          git commit -m 'Restore clean invoice app after blank page'
           git push origin HEAD:main
