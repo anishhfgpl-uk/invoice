@@ -20,6 +20,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Inspect Tally test code inside ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP='tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip'
+          rm -rf inspect
+          mkdir inspect
+          unzip -q "$ZIP" -d inspect
+          echo '=== Matching files / strings ==='
+          grep -RniE --exclude-dir=node_modules --exclude='*.map' 'Test Tally|Office connector timeout|Remote Office Code|direct connector URL|tally-relay|9101|/agent' inspect | head -n 250 || true
+
       - name: Restore clean invoice application ZIP
         shell: bash
         run: |
@@ -33,8 +44,6 @@ jobs:
             mv app/tallysync-pro/* app/
             rmdir app/tallysync-pro
           fi
-
-          # Remove connector/branding injections that were causing the blank page.
           rm -rf app/public/tally-connector
           python3 - <<'PY'
           from pathlib import Path
@@ -45,8 +54,6 @@ jobs:
           s = re.sub(r'<script[^>]+src=["\']\./tally-connector/[^"\']+["\'][^>]*></script>', '', s, flags=re.I)
           p.write_text(s, encoding='utf-8')
           PY
-
-          # Keep the site working under https://anish-tech.online/invoice/.
           for cfg in app/vite.config.*; do
             [ -f "$cfg" ] || continue
             python3 - "$cfg" <<'PY'
@@ -61,7 +68,6 @@ jobs:
           p.write_text(s, encoding='utf-8')
           PY
           done
-
           rm -f "$ZIP"
           (cd app && zip -q -r "../$ZIP" .)
 
