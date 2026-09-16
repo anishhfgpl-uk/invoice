@@ -1,1 +1,1 @@
-Trigger remote invoice build for the latest login gate.
+Live Tally Connect packaging trigger - 2026-09-16 22:14 IST
