@@ -20,43 +20,37 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Inspect Tally collection function inside ZIP
+      - name: Extract packaged app source for inspection
         shell: bash
         run: |
           set -euo pipefail
           ZIP='tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip'
-          rm -rf inspect
-          mkdir inspect
-          unzip -q "$ZIP" -d inspect
+          rm -rf inspect-app
+          mkdir inspect-app
+          unzip -q "$ZIP" -d inspect-app
           python3 - <<'PY'
           from pathlib import Path
           import re
-          hits=[]
-          for p in Path('inspect').rglob('*'):
-              if not p.is_file() or 'node_modules' in p.parts or p.suffix in {'.map'}: continue
+          out=Path('PACKAGED_APP_COMPANY_DEBUG.txt')
+          chunks=[]
+          for p in Path('inspect-app').rglob('*'):
+              if not p.is_file() or 'node_modules' in p.parts or p.suffix in {'.map','.png','.jpg','.jpeg','.gif','.webp','.woff','.woff2'}: continue
               try: s=p.read_text(encoding='utf-8')
               except: continue
-              if 'function collection' in s or 'const collection' in s or 'async function collection' in s:
-                  hits.append((p,s))
-          print('=== COLLECTION DEFINITIONS ===')
-          for p,s in hits:
-              print(f'FILE: {p}')
-              for m in re.finditer(r'(?:async\s+)?function\s+collection|(?:const|let|var)\s+collection',s):
-                  a=max(0,m.start()-1800); b=min(len(s),m.end()+5000)
-                  print(s[a:b])
-          print('=== LOAD COMPANIES ===')
-          for p,s in hits:
-              pass
-          for p in Path('inspect').rglob('*'):
-              if not p.is_file() or 'node_modules' in p.parts or p.suffix in {'.map'}: continue
-              try: s=p.read_text(encoding='utf-8')
-              except: continue
-              if 'loadCompanies' in s:
-                  print(f'FILE: {p}')
-                  for m in re.finditer(r'(?:async\s+)?function\s+loadCompanies|(?:const|let|var)\s+loadCompanies',s):
-                      a=max(0,m.start()-1000); b=min(len(s),m.end()+3500)
-                      print(s[a:b])
+              if any(x in s for x in ['Shree Ganesh Traders','Apex Infotech & Solutions','loadCompanies','companySelect','Select Company']):
+                  chunks.append(f'===== FILE: {p} =====\n')
+                  for term in ['Shree Ganesh Traders','Apex Infotech & Solutions','loadCompanies','companySelect','Select Company']:
+                      for m in list(re.finditer(re.escape(term),s,re.I))[:10]:
+                          a=max(0,m.start()-1800); b=min(len(s),m.end()+3500)
+                          chunks.append(s[a:b]+'\n---\n')
+          out.write_text(''.join(chunks),encoding='utf-8')
+          print(out, out.stat().st_size)
           PY
 
-      - name: Stop after inspection
-        run: echo 'Inspection complete'
+      - name: Commit inspection output
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add PACKAGED_APP_COMPANY_DEBUG.txt
+          git diff --cached --quiet || git commit -m 'Add packaged app company selector inspection'
+          git push
