@@ -27,7 +27,7 @@ jobs:
           set -e
           rm -rf .render-src
           cp -R invoice-1 .render-src
-          # Keep Vite base at /invoice/ so the app is available at /invoice/.
+          # The source entry is local; Vite's base setting handles the /invoice/ URL for built assets.
           cat > .render-src/index.html <<'EOF'
           <!doctype html>
           <html lang="en"><head>
@@ -36,7 +36,7 @@ jobs:
           <title>TallySync Pro - Tally Import, Ledger Ageing & GST Invoicing</title>
           </head><body>
           <div id="root"></div>
-          <script type="module" src="/invoice/src/main.tsx"></script>
+          <script type="module" src="/src/main.tsx"></script>
           </body></html>
           EOF
           cd .render-src
@@ -76,7 +76,7 @@ jobs:
           git fetch origin main
           git add invoice-1
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "Serve TallySync Pro at /invoice/"
+          git commit -m "Build TallySync Pro for /invoice/"
           git push origin HEAD:main || {
             git pull --rebase origin main
             git push origin HEAD:main
