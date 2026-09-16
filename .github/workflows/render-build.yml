@@ -27,6 +27,8 @@ jobs:
           set -e
           rm -rf .render-src
           cp -R invoice-1 .render-src
+          # Render serves this site at the domain root, not /invoice/.
+          sed -i "s#base: '/invoice/'#base: '/'#" .render-src/vite.config.ts
           cat > .render-src/index.html <<'EOF'
           <!doctype html>
           <html lang="en"><head>
