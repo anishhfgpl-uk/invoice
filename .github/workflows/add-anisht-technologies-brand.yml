@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/add-anisht-technologies-brand.yml'
       - 'tally-connector/live-tally.js'
+      - 'tally-connector/company-list-fix.js'
       - 'tally-connector/safe-live.js'
       - 'tally-connector/tally-connector.mjs'
       - 'tally-connector/START-TALLY-CONNECTOR.cmd'
@@ -34,8 +35,10 @@ jobs:
 
           zpath = Path('tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip')
           connector = Path('tally-connector/live-tally.js')
+          company_fix = Path('tally-connector/company-list-fix.js')
           if not zpath.exists(): raise SystemExit('Invoice ZIP not found')
           if not connector.exists(): raise SystemExit('live-tally.js not found')
+          if not company_fix.exists(): raise SystemExit('company-list-fix.js not found')
 
           with zipfile.ZipFile(zpath, 'r') as zin:
               names = zin.namelist()
@@ -45,10 +48,10 @@ jobs:
               index = files[index_name].decode('utf-8', errors='replace')
 
               for n in list(files):
-                  if any(n.endswith(x) for x in ('tally-connector-live.js','live-tally.js','invoice-connector-ui.js','safe-live.js')):
+                  if any(n.endswith(x) for x in ('tally-connector-live.js','live-tally.js','invoice-connector-ui.js','safe-live.js','company-list-fix.js')):
                       del files[n]
               index = re.sub(r'(?is)<!--\s*ANISH_REMOTE_TALLY_CONNECTOR\s*-->.*?<!--\s*/ANISH_REMOTE_TALLY_CONNECTOR\s*-->','',index)
-              index = re.sub(r'(?is)<script[^>]*(?:tally-connector-live|live-tally|invoice-connector-ui|safe-live)\.js[^>]*>.*?</script>\s*','',index)
+              index = re.sub(r'(?is)<script[^>]*(?:tally-connector-live|live-tally|invoice-connector-ui|safe-live|company-list-fix)\.js[^>]*>.*?</script>\s*','',index)
               index = re.sub(r'(?is)function\s+brand\s*\(\)\s*\{.*?function\s+panel\s*\(\)', '', index)
               index = re.sub(r'(?is)window\.TallySyncConnector.*?(?:\n|;)', '', index)
 
@@ -63,7 +66,8 @@ jobs:
               index=(index[:p]+brand+'\n'+index[p:]) if p>=0 else brand+'\n'+index
 
               connector_js=connector.read_text(encoding='utf-8').replace('</script>','<\\/script>')
-              inline='<script id="anish-tally-connector">\n'+connector_js+'\n</script>'
+              company_js=company_fix.read_text(encoding='utf-8').replace('</script>','<\\/script>')
+              inline='<script id="anish-tally-connector">\n'+connector_js+'\n</script>\n<script id="anish-company-list-fix">\n'+company_js+'\n</script>'
               p=index.lower().rfind('</body>')
               index=(index[:p]+inline+'\n'+index[p:]) if p>=0 else index+'\n'+inline
 
