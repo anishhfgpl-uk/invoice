@@ -1,4 +1,4 @@
-name: Brand Invoice App
+name: Remove Invoice Top Branding
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  brand:
+  remove-brand:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -19,15 +19,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Make invoice header single-line and sticky
+      - name: Remove ANISH TECHNOLOGIES header
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import zipfile
-          import os
-          import re
-
+          import zipfile, os, re
           zpath = Path('tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip')
           with zipfile.ZipFile(zpath, 'r') as zin:
               names = zin.namelist()
@@ -35,27 +32,22 @@ jobs:
               if not index_name:
                   raise SystemExit('index.html not found in invoice package')
               index = zin.read(index_name).decode('utf-8')
-
-              # Remove any previous injected ANISH TECHNOLOGIES header.
-              index = re.sub(r'<!-- ANISH_TECHNOLOGIES_TOP_BRAND -->.*?<div id="anish-technologies-brand">.*?</div>\s*', '', index, flags=re.I | re.S)
-
-              brand = '''<!-- ANISH_TECHNOLOGIES_TOP_BRAND -->\n<style id="anish-technologies-brand">\n#anish-technologies-brand{width:100%;box-sizing:border-box;background:linear-gradient(135deg,#0b1220,#172554);color:#fff;text-align:center;padding:10px 16px;font-family:Arial,Helvetica,sans-serif;border-bottom:3px solid #2563eb;box-shadow:0 2px 10px rgba(0,0,0,.18);position:sticky;top:0;z-index:2147483000}\n#anish-technologies-brand .at-name{font-size:clamp(20px,3vw,30px);font-weight:900;letter-spacing:3px;line-height:1.1;white-space:nowrap}\n</style>\n<div id="anish-technologies-brand"><div class="at-name">ANISH TECHNOLOGIES</div></div>\n'''
-              index = index.replace('</body>', brand + '</body>', 1) if '</body>' in index else brand + index
-
+              index = re.sub(r'<!-- ANISH_TECHNOLOGIES_TOP_BRAND -->.*?</style>\s*<div id="anish-technologies-brand">.*?</div>\s*', '', index, flags=re.I | re.S)
+              index = re.sub(r'<div id="anish-technologies-brand">.*?</div>\s*', '', index, flags=re.I | re.S)
+              index = re.sub(r'<style id="anish-technologies-brand">.*?</style>\s*', '', index, flags=re.I | re.S)
               tmp = zpath.with_suffix('.tmp.zip')
               with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zout:
                   for n in names:
-                      data = index.encode('utf-8') if n == index_name else zin.read(n)
-                      zout.writestr(n, data)
+                      zout.writestr(n, index.encode('utf-8') if n == index_name else zin.read(n))
           os.replace(tmp, zpath)
           PY
 
-      - name: Commit header change
+      - name: Commit removal
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
           git diff --cached --quiet && exit 0
-          git commit -m "Keep ANISH TECHNOLOGIES header single-line and sticky"
+          git commit -m "Remove ANISH TECHNOLOGIES top header"
           git push origin HEAD:main
