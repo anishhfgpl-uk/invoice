@@ -19,7 +19,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Keep only ANISH TECHNOLOGIES at the top
+      - name: Inject persistent ANISH TECHNOLOGIES top brand
         shell: bash
         run: |
           python3 - <<'PY'
@@ -35,22 +35,35 @@ jobs:
 
               index = zin.read(index_name).decode('utf-8')
 
-              # Remove previously injected top-brand block.
-              index = re.sub(r'<!-- ANISH_TECHNOLOGIES_TOP_BRAND -->.*?</style>\s*<div id="anish-technologies-brand">.*?</div>\s*', '', index, flags=re.I | re.S)
-              index = re.sub(r'<style[^>]*id=["\']anish-technologies-brand["\'][^>]*>.*?</style>\s*', '', index, flags=re.I | re.S)
-              index = re.sub(r'<div[^>]*id=["\']anish-technologies-brand["\'][^>]*>.*?</div>\s*', '', index, flags=re.I | re.S)
+              # Remove only branding injected by earlier versions of this workflow.
+              index = re.sub(r'\\s*<!-- ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->.*?<!-- /ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->\\s*', '\\n', index, flags=re.I | re.S)
+              index = re.sub(r'<style[^>]*id=["\']anish-technologies-brand[^>]*>.*?</style>\\s*', '', index, flags=re.I | re.S)
+              index = re.sub(r'<div[^>]*id=["\']anish-technologies-brand[^>]*>.*?</div>\\s*', '', index, flags=re.I | re.S)
 
-              # Remove the top branding text variants only.
-              for text in ('ANISH TECHNOLOGIES', 'TallySync Pro • Digital Solutions', 'TallySync Pro Digital Solutions', 'TallySync Pro - Digital Solutions'):
-                  index = index.replace(text, '', 1)
+              injection = '''<!-- ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->
+          <style id="anish-technologies-persistent-brand">
+            body::before{
+              content:"ANISH TECHNOLOGIES" !important;
+              display:block !important;
+              width:100% !important;
+              box-sizing:border-box !important;
+              padding:16px 24px !important;
+              text-align:center !important;
+              font-family:inherit !important;
+              font-size:22px !important;
+              font-weight:800 !important;
+              letter-spacing:.08em !important;
+              line-height:1.2 !important;
+              position:relative !important;
+              z-index:99999 !important;
+            }
+          </style>
+          <!-- /ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->'''
 
-              # Add ANISH TECHNOLOGIES back as the only custom top brand.
-              brand_style = '''<style id="anish-technologies-brand">#anish-technologies-brand{font-size:22px;font-weight:800;letter-spacing:.08em;padding:16px 24px;text-align:center}</style>'''
-              brand_html = '<div id="anish-technologies-brand">ANISH TECHNOLOGIES</div>'
-              if re.search(r'<body[^>]*>', index, flags=re.I):
-                  index = re.sub(r'(<body[^>]*>)', r'\1' + brand_style + brand_html, index, count=1, flags=re.I)
+              if re.search(r'<head[^>]*>', index, flags=re.I):
+                  index = re.sub(r'(<head[^>]*>)', lambda m: m.group(1) + '\\n' + injection + '\\n', index, count=1, flags=re.I)
               else:
-                  index = brand_style + brand_html + index
+                  index = injection + '\\n' + index
 
               tmp = zpath.with_suffix('.tmp.zip')
               with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zout:
@@ -66,5 +79,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
           git diff --cached --quiet && exit 0
-          git commit -m "Keep ANISH TECHNOLOGIES as top branding"
+          git commit -m "Persist ANISH TECHNOLOGIES top branding"
           git push origin HEAD:main
