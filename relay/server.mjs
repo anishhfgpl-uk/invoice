@@ -35,7 +35,7 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==='OPTIONS')return json(res,204,{});
   const u=new URL(req.url,`http://${req.headers.host}`);
   if(u.pathname==='/health')return json(res,200,{ok:true,service:'tally-relay',devices:devices.size,pending:pending.size});
-  const x=u.pathname.match(/^\/api\/device\/([A-Z0-9]+)\/xml$/);
+  const x=u.pathname.match(/^\/api\/device\/([A-Z0-9_-]+)\/xml$/);
   if(x&&req.method==='POST'){
     const deviceCode=x[1],d=devices.get(deviceCode);
     if(!d||d.ws.readyState!==1)return json(res,409,{ok:false,error:'Office Tally connector is offline'});
@@ -56,7 +56,7 @@ const server=http.createServer(async(req,res)=>{
     }catch(e){return json(res,502,{ok:false,error:e.message})}
   }
   if(u.pathname==='/api/device/register'&&req.method==='POST')return json(res,200,{ok:true,code:crypto.randomBytes(9).toString('base64url').replace(/[-_]/g,'').slice(0,12).toUpperCase()});
-  const m=u.pathname.match(/^\/api\/device\/([A-Z0-9]+)\/status$/);
+  const m=u.pathname.match(/^\/api\/device\/([A-Z0-9_-]+)\/status$/);
   if(m&&req.method==='GET'){
     const d=devices.get(m[1]);
     return json(res,200,{ok:true,connected:!!d,lastSeen:d?.lastSeen||null});
@@ -64,15 +64,13 @@ const server=http.createServer(async(req,res)=>{
   json(res,404,{ok:false,error:'Not found'});
 });
 
-// Let the ws package attach directly to the HTTP server for /agent.
-// This avoids manual upgrade handling and is more reliable behind Render/Cloudflare.
 const wss=new WebSocketServer({server,path:'/agent'});
 
 wss.on('connection',(ws,req)=>{
   try{
     const u=new URL(req.url,`http://${req.headers.host}`);
     const c=(u.searchParams.get('code')||'').toUpperCase();
-    if(!/^[A-Z0-9]{8,32}$/.test(c)){
+    if(!/^[A-Z0-9_-]{8,40}$/.test(c)){
       ws.close(1008,'Invalid office code');
       return;
     }
