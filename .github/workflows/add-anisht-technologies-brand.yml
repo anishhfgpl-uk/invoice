@@ -5,9 +5,11 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/add-anisht-technologies-brand.yml'
+      - 'tally-connector/live-tally.js'
       - 'tally-connector/safe-live.js'
       - 'tally-connector/tally-connector.mjs'
       - 'tally-connector/START-TALLY-CONNECTOR.cmd'
+      - 'tally-connector/BUILD_TRIGGER.txt'
   workflow_dispatch:
 
 permissions:
@@ -31,9 +33,9 @@ jobs:
           import zipfile, os, re
 
           zpath = Path('tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip')
-          connector = Path('tally-connector/safe-live.js')
+          connector = Path('tally-connector/live-tally.js')
           if not zpath.exists(): raise SystemExit('Invoice ZIP not found')
-          if not connector.exists(): raise SystemExit('safe-live.js not found')
+          if not connector.exists(): raise SystemExit('live-tally.js not found')
 
           with zipfile.ZipFile(zpath, 'r') as zin:
               names = zin.namelist()
@@ -43,10 +45,10 @@ jobs:
               index = files[index_name].decode('utf-8', errors='replace')
 
               for n in list(files):
-                  if any(n.endswith(x) for x in ('tally-connector-live.js','live-tally.js','invoice-connector-ui.js')):
+                  if any(n.endswith(x) for x in ('tally-connector-live.js','live-tally.js','invoice-connector-ui.js','safe-live.js')):
                       del files[n]
               index = re.sub(r'(?is)<!--\s*ANISH_REMOTE_TALLY_CONNECTOR\s*-->.*?<!--\s*/ANISH_REMOTE_TALLY_CONNECTOR\s*-->','',index)
-              index = re.sub(r'(?is)<script[^>]*(?:tally-connector-live|live-tally|invoice-connector-ui)\.js[^>]*>.*?</script>\s*','',index)
+              index = re.sub(r'(?is)<script[^>]*(?:tally-connector-live|live-tally|invoice-connector-ui|safe-live)\.js[^>]*>.*?</script>\s*','',index)
               index = re.sub(r'(?is)function\s+brand\s*\(\)\s*\{.*?function\s+panel\s*\(\)', '', index)
               index = re.sub(r'(?is)window\.TallySyncConnector.*?(?:\n|;)', '', index)
 
@@ -84,5 +86,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
           if git diff --cached --quiet; then echo 'No packaging changes.'; exit 0; fi
-          git commit -m "Package office Tally connector launcher"
+          git commit -m "Package live Tally Connect directly into app"
           git push origin HEAD:main
