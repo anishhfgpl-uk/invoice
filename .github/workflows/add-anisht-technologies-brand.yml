@@ -1,11 +1,10 @@
-name: Build Invoice App Enhancements
+name: Package Invoice App
 
 on:
   push:
     branches: [main]
     paths:
       - '.github/workflows/add-anisht-technologies-brand.yml'
-      - 'tally-connector/live-tally.js'
   workflow_dispatch:
 
 permissions:
@@ -20,22 +19,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Inject ANISH branding and remote Tally connector UI
+      - name: Remove broken connector injection and keep requested branding
         shell: bash
         run: |
+          set -e
           python3 - <<'PY'
           from pathlib import Path
           import zipfile, os, re
 
           zpath = Path('tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip')
-          js = Path('tally-connector/live-tally.js').read_text(encoding='utf-8')
-
-          def remove_marker(text, start, end):
-              while start in text and end in text:
-                  a = text.index(start)
-                  b = text.index(end, a) + len(end)
-                  text = text[:a] + text[b:]
-              return text
+          if not zpath.exists():
+              raise SystemExit('Invoice ZIP not found')
 
           with zipfile.ZipFile(zpath, 'r') as zin:
               names = zin.namelist()
@@ -44,50 +38,49 @@ jobs:
                   raise SystemExit('index.html not found in invoice package')
 
               index = zin.read(index_name).decode('utf-8')
-              index = remove_marker(index, '<!-- ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->', '<!-- /ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->')
-              index = remove_marker(index, '<!-- ANISH_REMOTE_TALLY_CONNECTOR -->', '<!-- /ANISH_REMOTE_TALLY_CONNECTOR -->')
-              index = re.sub(r'<script[^>]*data-anishtally=["\']1["\'][^>]*>.*?</script>\s*', '', index, flags=re.I | re.S)
-              index = re.sub(r'<style[^>]*id=["\']anish-technologies-brand[^>]*>.*?</style>\s*', '', index, flags=re.I | re.S)
-              index = re.sub(r'<div[^>]*id=["\']anish-technologies-brand[^>]*>.*?</div>\s*', '', index, flags=re.I | re.S)
+
+              # Remove all connector artifacts that were injected by previous builds.
+              index = re.sub(r'<!--\\s*ANISH_REMOTE_TALLY_CONNECTOR\\s*-->.*?<!--\\s*/ANISH_REMOTE_TALLY_CONNECTOR\\s*-->', '', index, flags=re.I|re.S)
+              index = re.sub(r'<script[^>]*(?:tally-connector-live|live-tally)\\.js[^>]*>.*?</script>\\s*', '', index, flags=re.I|re.S)
+              index = re.sub(r'<script[^>]*(?:data-anishtally|ANISH_REMOTE_TALLY_CONNECTOR)[^>]*>.*?</script>\\s*', '', index, flags=re.I|re.S)
+
+              # Remove old injected brand variants, then add only the requested top name.
+              index = re.sub(r'<!--\\s*ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND\\s*-->.*?<!--\\s*/ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND\\s*-->', '', index, flags=re.I|re.S)
+              index = re.sub(r'<style[^>]*id=["\']anish-technologies-(?:brand|persistent-brand)[^>]*>.*?</style>\\s*', '', index, flags=re.I|re.S)
+              index = re.sub(r'<div[^>]*id=["\']anish-technologies-brand[^>]*>.*?</div>\\s*', '', index, flags=re.I|re.S)
 
               brand = '''<!-- ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->
           <style id="anish-technologies-persistent-brand">
-          body::before{content:"ANISH TECHNOLOGIES" !important;display:block !important;width:100% !important;box-sizing:border-box !important;padding:16px 24px !important;text-align:center !important;font-family:Arial,Helvetica,sans-serif !important;font-size:22px !important;font-weight:800 !important;letter-spacing:.08em !important;line-height:1.2 !important;position:relative !important;z-index:99999 !important}
+          body::before{content:"ANISH TECHNOLOGIES" !important;display:block !important;width:100% !important;box-sizing:border-box !important;background:#0b1220 !important;color:#fff !important;text-align:center !important;padding:16px 12px !important;font-family:Arial,Helvetica,sans-serif !important;font-size:clamp(24px,4vw,38px) !important;font-weight:900 !important;letter-spacing:3px !important;line-height:1.1 !important;border-bottom:3px solid #2563eb !important;position:relative !important;z-index:2147483000 !important}
           </style>
           <!-- /ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->'''
 
-              connector = '''<!-- ANISH_REMOTE_TALLY_CONNECTOR -->
-          <script src="./tally-connector-live.js" defer></script>
-          <!-- /ANISH_REMOTE_TALLY_CONNECTOR -->'''
-
-              lower = index.lower()
-              pos = lower.find('</head>')
+              pos = index.lower().find('</head>')
               if pos >= 0:
                   index = index[:pos] + brand + '\n' + index[pos:]
               else:
                   index = brand + '\n' + index
 
-              lower = index.lower()
-              pos = lower.find('</body>')
-              if pos >= 0:
-                  index = index[:pos] + connector + '\n' + index[pos:]
-              else:
-                  index += '\n' + connector
-
-              tmp = zpath.with_suffix('.tmp.zip')
+              tmp = zpath.with_suffix('.clean.tmp.zip')
               with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zout:
                   for n in names:
+                      # Never carry the broken injected connector JS into the deployed package.
+                      if n.endswith('tally-connector-live.js') or n.endswith('live-tally.js'):
+                          continue
                       zout.writestr(n, index.encode('utf-8') if n == index_name else zin.read(n))
-                  zout.writestr('tally-connector-live.js', js)
               os.replace(tmp, zpath)
           PY
 
       - name: Commit packaged app
         shell: bash
         run: |
+          set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip"
-          git diff --cached --quiet && exit 0
-          git commit -m "Fix remote Tally connector script injection"
+          if git diff --cached --quiet; then
+            echo 'No packaging changes.'
+            exit 0
+          fi
+          git commit -m "Remove broken remote Tally text injection"
           git push origin HEAD:main
