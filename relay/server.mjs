@@ -64,41 +64,47 @@ const server=http.createServer(async(req,res)=>{
   json(res,404,{ok:false,error:'Not found'});
 });
 
-const wss=new WebSocketServer({noServer:true});
-server.on('upgrade',(req,socket,head)=>{
+// Let the ws package attach directly to the HTTP server for /agent.
+// This avoids manual upgrade handling and is more reliable behind Render/Cloudflare.
+const wss=new WebSocketServer({server,path:'/agent'});
+
+wss.on('connection',(ws,req)=>{
   try{
     const u=new URL(req.url,`http://${req.headers.host}`);
-    if(u.pathname!=='/agent')return socket.destroy();
     const c=(u.searchParams.get('code')||'').toUpperCase();
-    if(!/^[A-Z0-9]{8,32}$/.test(c))return socket.destroy();
-    wss.handleUpgrade(req,socket,head,ws=>{ws.deviceCode=c;wss.emit('connection',ws,req)});
-  }catch(_){socket.destroy()}
-});
-
-wss.on('connection',ws=>{
-  const c=ws.deviceCode,old=devices.get(c);
-  if(old?.ws&&old.ws!==ws)old.ws.close(4000,'Replaced by newer connector');
-  devices.set(c,{ws,connectedAt:Date.now(),lastSeen:Date.now()});
-  ws.send(JSON.stringify({type:'connected',code:c}));
-  ws.on('message',raw=>{
-    try{
-      const msg=JSON.parse(raw.toString()),d=devices.get(c);
-      if(d)d.lastSeen=Date.now();
-      if(msg.type==='tally_result'&&msg.id){
-        const p=pending.get(msg.id);
-        if(!p)return;
-        clearTimeout(p.timer);
-        pending.delete(msg.id);
-        if(msg.error)p.reject(new Error(msg.error));
-        else p.resolve(msg.xml||'');
-      }
-    }catch(_){ }
-  });
-  ws.on('close',()=>{
-    const d=devices.get(c);
-    if(d?.ws===ws)devices.delete(c);
-  });
-  ws.on('error',()=>{});
+    if(!/^[A-Z0-9]{8,32}$/.test(c)){
+      ws.close(1008,'Invalid office code');
+      return;
+    }
+    ws.deviceCode=c;
+    const old=devices.get(c);
+    if(old?.ws&&old.ws!==ws)old.ws.close(4000,'Replaced by newer connector');
+    devices.set(c,{ws,connectedAt:Date.now(),lastSeen:Date.now()});
+    console.log(`Agent connected: ${c}`);
+    ws.send(JSON.stringify({type:'connected',code:c}));
+    ws.on('message',raw=>{
+      try{
+        const msg=JSON.parse(raw.toString()),d=devices.get(c);
+        if(d)d.lastSeen=Date.now();
+        if(msg.type==='tally_result'&&msg.id){
+          const p=pending.get(msg.id);
+          if(!p)return;
+          clearTimeout(p.timer);
+          pending.delete(msg.id);
+          if(msg.error)p.reject(new Error(msg.error));
+          else p.resolve(msg.xml||'');
+        }
+      }catch(_){ }
+    });
+    ws.on('close',()=>{
+      console.log(`Agent disconnected: ${c}`);
+      const d=devices.get(c);
+      if(d?.ws===ws)devices.delete(c);
+    });
+    ws.on('error',()=>{});
+  }catch(e){
+    try{ws.close(1011,'Server error')}catch(_){ }
+  }
 });
 
 setInterval(()=>{
