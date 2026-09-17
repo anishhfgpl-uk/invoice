@@ -11,72 +11,64 @@ const CODE_FILE=process.env.OFFICE_CODE_FILE||'.office-code';
 function makeCode(){return `ANISH-${crypto.randomBytes(4).toString('hex').toUpperCase()}`}
 function loadCode(){const env=(process.env.OFFICE_CODE||'').trim().toUpperCase();if(env)return env;try{const x=fs.readFileSync(CODE_FILE,'utf8').trim().toUpperCase();if(/^[A-Z0-9_-]{6,40}$/.test(x))return x}catch{}const c=makeCode();try{fs.writeFileSync(CODE_FILE,c+'\n','utf8')}catch{}return c}
 const OFFICE_CODE=loadCode();
-
 const ALLOWED_ORIGINS=new Set(['https://anish-tech.online','http://localhost:3000','http://127.0.0.1:3000']);
-let relayConnected=false;
-let relaySocket=null;
-let reconnectTimer=null;
-let tallyQueue=Promise.resolve();
+let relayConnected=false,relaySocket=null,reconnectTimer=null,tallyQueue=Promise.resolve();
 
 function cors(origin){const h={'Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type','Access-Control-Max-Age':'86400'};if(ALLOWED_ORIGINS.has(origin))h['Access-Control-Allow-Origin']=origin;return h}
 function send(res,status,body,origin,type='application/json'){res.writeHead(status,{'Content-Type':type,...cors(origin)});res.end(body)}
 async function read(req){const a=[];for await(const c of req)a.push(c);return Buffer.concat(a).toString('utf8')}
-async function tally(xml){const r=await fetch(TALLY_URL,{method:'POST',headers:{'Content-Type':'text/xml'},body:xml,signal:AbortSignal.timeout(30000)});return r.text()}
+
+// Use Node's native http client instead of fetch(). This is more reliable on Windows
+// with TallyPrime's local HTTP server and gives a useful error instead of "fetch failed".
+function tally(xml){
+  return new Promise((resolve,reject)=>{
+    let target;
+    try{target=new URL(TALLY_URL)}catch(e){return reject(new Error(`Invalid Tally URL: ${TALLY_URL}`))}
+    const body=Buffer.from(String(xml||''),'utf8');
+    const req=http.request({
+      protocol:target.protocol,
+      hostname:target.hostname,
+      port:target.port||80,
+      path:target.pathname+(target.search||''),
+      method:'POST',
+      headers:{'Content-Type':'text/xml; charset=utf-8','Content-Length':body.length,'Connection':'close'},
+      timeout:60000,
+    },res=>{
+      const chunks=[];
+      res.on('data',c=>chunks.push(c));
+      res.on('end',()=>{
+        const out=Buffer.concat(chunks).toString('utf8');
+        if(res.statusCode&&res.statusCode>=400)return reject(new Error(`Tally HTTP ${res.statusCode}: ${out.slice(0,500)}`));
+        resolve(out);
+      });
+    });
+    req.on('timeout',()=>req.destroy(new Error('Tally connection timeout after 60 seconds')));
+    req.on('error',e=>reject(new Error(`Tally connection error: ${e.message}`)));
+    req.write(body);req.end();
+  });
+}
 
 function relayWsUrl(){return RELAY_URL.replace(/^https:/,'wss:').replace(/^http:/,'ws:')+`/agent?code=${encodeURIComponent(OFFICE_CODE)}`}
-
 function connectRelay(){
-  if(relaySocket && (relaySocket.readyState===0 || relaySocket.readyState===1))return;
+  if(relaySocket&&(relaySocket.readyState===0||relaySocket.readyState===1))return;
   clearTimeout(reconnectTimer);
   try{
-    const url=relayWsUrl();
-    console.log(`Connecting to Relay WebSocket: ${url}`);
-    const ws=new WebSocket(url);
-    relaySocket=ws;
-    ws.addEventListener('open',()=>{
-      relayConnected=true;
-      console.log(`Relay WebSocket connected: ${url}`);
-    });
-    ws.addEventListener('message',event=>{
-      try{
-        const msg=JSON.parse(typeof event.data==='string'?event.data:Buffer.from(event.data).toString('utf8'));
-        if(msg.type!=='tally_xml'||!msg.id)return;
-        tallyQueue=tallyQueue.then(async()=>{
-          let result;
-          try{result=await tally(String(msg.xml||''));}
-          catch(e){result=`<ENVELOPE><BODY><LINEERROR>${String(e.message).replace(/[<&>]/g,'')}</LINEERROR></BODY></ENVELOPE>`;}
-          if(ws.readyState===1)ws.send(JSON.stringify({type:'tally_result',id:msg.id,xml:result}));
-        }).catch(e=>console.log('Tally queue:',e.message));
-      }catch(e){console.log('Relay message:',e.message)}
-    });
-    ws.addEventListener('close',event=>{
-      if(relaySocket===ws)relaySocket=null;
-      relayConnected=false;
-      console.log(`Relay WebSocket closed: code=${event.code||0} reason=${event.reason||'none'}`);
-      reconnectTimer=setTimeout(connectRelay,2000);
-    });
-    ws.addEventListener('error',event=>{
-      relayConnected=false;
-      console.log('Relay WebSocket error:',event?.message||event?.error?.message||'connection error');
-    });
-  }catch(e){
-    relayConnected=false;
-    console.log('Relay WebSocket exception:',e.message);
-    reconnectTimer=setTimeout(connectRelay,2000);
-  }
+    const url=relayWsUrl();console.log(`Connecting to Relay WebSocket: ${url}`);const ws=new WebSocket(url);relaySocket=ws;
+    ws.addEventListener('open',()=>{relayConnected=true;console.log(`Relay WebSocket connected: ${url}`)});
+    ws.addEventListener('message',event=>{try{const msg=JSON.parse(typeof event.data==='string'?event.data:Buffer.from(event.data).toString('utf8'));if(msg.type!=='tally_xml'||!msg.id)return;tallyQueue=tallyQueue.then(async()=>{let result;try{result=await tally(String(msg.xml||''))}catch(e){result=`<ENVELOPE><BODY><LINEERROR>${String(e.message).replace(/[<&>]/g,'')}</LINEERROR></BODY></ENVELOPE>`}if(ws.readyState===1)ws.send(JSON.stringify({type:'tally_result',id:msg.id,xml:result}))}).catch(e=>console.log('Tally queue:',e.message))}catch(e){console.log('Relay message:',e.message)}});
+    ws.addEventListener('close',event=>{if(relaySocket===ws)relaySocket=null;relayConnected=false;console.log(`Relay WebSocket closed: code=${event.code||0} reason=${event.reason||'none'}`);reconnectTimer=setTimeout(connectRelay,2000)});
+    ws.addEventListener('error',event=>{relayConnected=false;console.log('Relay WebSocket error:',event?.message||event?.error?.message||'connection error')});
+  }catch(e){relayConnected=false;console.log('Relay WebSocket exception:',e.message);reconnectTimer=setTimeout(connectRelay,2000)}
 }
 
 const server=http.createServer(async(req,res)=>{
   const origin=req.headers.origin||'';
-  if(req.method==='OPTIONS'){
-    if(origin&&!ALLOWED_ORIGINS.has(origin))return send(res,403,JSON.stringify({ok:false,error:'Origin not allowed'}),origin);
-    res.writeHead(204,cors(origin));return res.end();
-  }
+  if(req.method==='OPTIONS'){if(origin&&!ALLOWED_ORIGINS.has(origin))return send(res,403,JSON.stringify({ok:false,error:'Origin not allowed'}),origin);res.writeHead(204,cors(origin));return res.end()}
   const u=new URL(req.url,`http://${req.headers.host}`);
   try{
     if(u.pathname==='/health'&&req.method==='GET'){
-      let ok=false;try{ok=(await fetch(TALLY_URL,{signal:AbortSignal.timeout(3000)})).ok}catch{}
-      return send(res,200,JSON.stringify({ok:true,service:'tally-connector',tallyUrl:TALLY_URL,tally:ok,relay:relayConnected,relayUrl:RELAY_URL,officeCode:OFFICE_CODE}),origin);
+      let ok=false;try{await tally('<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Data</TYPE><ID>Company Collection</ID></HEADER><BODY><DESC><STATICVARIABLES><SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT></STATICVARIABLES></DESC></BODY></ENVELOPE>');ok=true}catch(e){console.log('Health Tally check:',e.message)}
+      return send(res,200,JSON.stringify({ok:true,service:'tally-connector',tallyUrl:TALLY_URL,tally:ok,relay:relayConnected,relayUrl:RELAY_URL,officeCode:OFFICE_CODE}),origin)
     }
     if(u.pathname==='/code'&&req.method==='GET')return send(res,200,JSON.stringify({ok:true,officeCode:OFFICE_CODE,relay:relayConnected,relayUrl:RELAY_URL}),origin);
     if((u.pathname==='/tally/xml'||u.pathname==='/tally')&&req.method==='POST'){
@@ -87,12 +79,4 @@ const server=http.createServer(async(req,res)=>{
     return send(res,404,JSON.stringify({ok:false,error:'Not found'}),origin);
   }catch(e){return send(res,502,JSON.stringify({ok:false,error:String(e.message||e)}),origin)}
 });
-
-server.listen(PORT,HOST,()=>{
-  console.log(`Tally connector running on http://${HOST}:${PORT}`);
-  console.log(`Tally target: ${TALLY_URL}`);
-  console.log(`Computer Code: ${OFFICE_CODE}`);
-  console.log(`Secure Relay: ${RELAY_URL}`);
-  console.log('Keep this window running while the office Tally is connected.');
-  connectRelay();
-});
+server.listen(PORT,HOST,()=>{console.log(`Tally connector running on http://${HOST}:${PORT}`);console.log(`Tally target: ${TALLY_URL}`);console.log(`Computer Code: ${OFFICE_CODE}`);console.log(`Secure Relay: ${RELAY_URL}`);console.log('Keep this window running while the office Tally is connected.');connectRelay()});
