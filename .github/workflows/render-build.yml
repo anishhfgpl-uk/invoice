@@ -61,8 +61,6 @@ jobs:
               shutil.rmtree(out)
           shutil.copytree(dist, out)
 
-          # Add the connector without adding the old black header or generated
-          # fixed button. The React app can handle Tally connection itself.
           live = Path('tally-connector/live-tally.js').read_text(encoding='utf-8')
           fix = Path('tally-connector/company-list-fix.js').read_text(encoding='utf-8')
           (out / 'tally-connector.js').write_text(live + '\n' + fix + '\n', encoding='utf-8')
@@ -72,7 +70,7 @@ jobs:
           html = re.sub(r'(?is)<style[^>]*id=["\']anish-technologies-(?:brand|persistent-brand)[^>]*>.*?</style>\s*', '', html)
           html = re.sub(r'(?is)<style>body::before\{content:[^}]+\}</style>\s*', '', html)
           html = re.sub(r'(?is)<script[^>]*id=["\']anish-permanent-tally-connect["\'][^>]*>.*?</script>\s*', '', html)
-          html = html.replace('</body>', '<script src="/invoice/tally-connector.js?v=9"></script></body>')
+          html = html.replace('</body>', '<script src="/invoice/tally-connector.js?v=10"></script></body>')
           html_path.write_text(html, encoding='utf-8')
           PY
 
@@ -86,5 +84,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add invoice-1/invoice
           if git diff --cached --quiet; then echo 'No Render build changes.'; exit 0; fi
-          git commit -m "Fix Render invoice route and clean build"
+          git commit -m "Rebuild invoice app with Tally connector v10"
           git push origin HEAD:main
