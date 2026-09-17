@@ -20,67 +20,43 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Build Vite app for Render
+      - name: Prepare Render directory
         shell: bash
         run: |
           set -e
           rm -rf .render-src
           cp -R invoice-1 .render-src
           cat > .render-src/index.html <<'EOF'
-          <!doctype html>
-          <html lang="en"><head>
-          <meta charset="UTF-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <title>TallySync Pro - Tally Import, Ledger Ageing & GST Invoicing</title>
-          </head><body>
-          <div id="root"></div>
-          <script type="module" src="/src/main.tsx"></script>
-          </body></html>
+          <!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>TallySync Pro</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>
           EOF
           cd .render-src
           npm ci
           npm run build
           cd ..
-
           python3 - <<'PY'
           from pathlib import Path
           import shutil
-          dist=Path('.render-src/dist')
-          root=Path('invoice-1')
-          out=root/'invoice'
-          if not dist.exists(): raise SystemExit('Vite dist directory not created')
+          dist=Path('.render-src/dist'); out=Path('invoice-1/invoice')
+          if not dist.exists(): raise SystemExit('dist missing')
           if out.exists(): shutil.rmtree(out)
-          out.mkdir(parents=True)
-          for p in dist.iterdir():
-              target=out/p.name
-              shutil.copytree(p,target,dirs_exist_ok=True) if p.is_dir() else shutil.copy2(p,target)
+          shutil.copytree(dist,out)
           live=Path('tally-connector/live-tally.js').read_text(encoding='utf-8')
           fix=Path('tally-connector/company-list-fix.js').read_text(encoding='utf-8')
           (out/'tally-connector.js').write_text(live+'\n'+fix+'\n',encoding='utf-8')
           html=(out/'index.html').read_text(encoding='utf-8')
-          brand='<style>body::before{content:"ANISH TECHNOLOGIES";display:block;box-sizing:border-box;width:100%;padding:16px 12px;background:#0b1220;color:#fff;text-align:center;font:900 30px Arial;letter-spacing:3px;border-bottom:3px solid #2563eb}</style>'
-          top='<div id="tally-top-connect" style="position:fixed;top:14px;right:18px;z-index:2147483647;pointer-events:auto"><button id="tally-top-connect-btn" type="button" style="padding:11px 18px;border:0;border-radius:10px;background:#2563eb;color:#fff;font:800 14px Arial;cursor:pointer;box-shadow:0 6px 18px #0005;pointer-events:auto">🔗 Tally Connect</button></div>'
-          inject='<script src="/invoice/tally-connector.js?v=7"></script>'
-          helper='''<script>(function(){function openTally(){var m=document.getElementById("ts-modal");if(m){m.style.display="flex";return}var b=document.getElementById("ts-connect-btn");if(b){b.click();return}setTimeout(function(){var mm=document.getElementById("ts-modal");var bb=document.getElementById("ts-connect-btn");if(mm)mm.style.display="flex";else if(bb)bb.click();},500)}function wire(){var t=document.getElementById("tally-top-connect-btn");if(!t)return false;t.onclick=function(e){e.preventDefault();e.stopPropagation();openTally()};t.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();openTally()},true);return true}if(!wire()){var n=0,i=setInterval(function(){if(wire()||++n>100)clearInterval(i)},200)}})();</script>'''
-          html=html.replace('</head>',brand+'\n</head>')
-          html=html.replace('<body>','<body>'+top)
-          html=html.replace('</body>',inject+'\n'+helper+'\n</body>')
+          html=html.replace('</head>','''<style>body::before{content:"ANISH TECHNOLOGIES";display:block;width:100%;box-sizing:border-box;padding:16px;text-align:center;background:#0b1220;color:white;font:bold 30px Arial}</style></head>''')
+          html=html.replace('<body>','''<body><button id="tally-top-connect-btn" type="button" onclick="window.openTallyNow&&window.openTallyNow()" style="position:fixed;top:14px;right:18px;z-index:2147483647;padding:11px 18px;border:0;border-radius:10px;background:#2563eb;color:#fff;font:800 14px Arial;cursor:pointer;box-shadow:0 6px 18px #0005">🔗 Tally Connect</button>''')
+          html=html.replace('</body>','''<script src="/invoice/tally-connector.js?v=8"></script><script>window.openTallyNow=function(){var m=document.getElementById('ts-modal');if(m){m.style.display='flex';return true}var b=document.getElementById('ts-connect-btn');if(b){b.click();return true}window.dispatchEvent(new Event('tally-connect'));setTimeout(function(){var mm=document.getElementById('ts-modal');var bb=document.getElementById('ts-connect-btn');if(mm)mm.style.display='flex';else if(bb)bb.click()},300);return true};</script></body>''')
           (out/'index.html').write_text(html,encoding='utf-8')
           PY
           rm -rf .render-src
-
       - name: Commit Render-ready build
         shell: bash
         run: |
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
           git add invoice-1
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "Make Tally Connect button directly clickable"
-          git push origin HEAD:main || {
-            git pull --rebase origin main
-            git push origin HEAD:main
-          }
+          git commit -m "Deploy direct Tally Connect handler"
+          git push origin HEAD:main
