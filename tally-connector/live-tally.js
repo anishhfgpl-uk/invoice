@@ -1,4 +1,4 @@
-/* Remote Tally connector UI v11 - weekly invoice import */
+/* Remote Tally connector UI v12 - weekly invoice import + local fallback */
 (()=>{
 const RELAY='https://tally-relay-anil-sharma.onrender.com';
 const K={url:'tallysync_connector_url',code:'tallysync_office_code',company:'tallysync_selected_company',companies:'tallysync_companies',companyData:'tallysync_company_profile',debtors:'tallysync_debtors',items:'tallysync_items',invoices:'tallysync_invoices'};
@@ -7,7 +7,26 @@ const saved=()=>localStorage.getItem(K.url)||'http://127.0.0.1:9101', code=()=>l
 const selected=()=>{try{return JSON.parse(localStorage.getItem(K.company)||'null')}catch{return null}};
 const num=v=>{const n=Number(String(v??'').replace(/,/g,'').replace(/[A-Za-z]/g,'').trim());return Number.isFinite(n)?Math.abs(n):0};
 const safeId=(p,v)=>`${p}_tally_${String(v||'x').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,70)}`;
-async function post(xml){const c=code(),u=c?`${RELAY}/api/device/${encodeURIComponent(c)}/xml`:saved().replace(/\/$/,'')+'/tally/xml';let r;try{r=await fetch(u,{method:'POST',headers:{'Content-Type':'text/xml;charset=utf-8'},body:xml,signal:AbortSignal.timeout(120000)})}catch(e){throw Error('Tally connector/relay timeout (120 sec). Office connector online hai?')}const t=await r.text();if(!r.ok)throw Error(t.slice(0,400)||`HTTP ${r.status}`);return t}
+async function request(u,xml,timeout=120000){
+  const r=await fetch(u,{method:'POST',headers:{'Content-Type':'text/xml;charset=utf-8'},body:xml,signal:AbortSignal.timeout(timeout)});
+  const t=await r.text();
+  if(!r.ok)throw Error(t.slice(0,400)||`HTTP ${r.status}`);
+  return t;
+}
+async function post(xml){
+  const c=code(),local=saved().replace(/\/$/,''),remote=c?`${RELAY}/api/device/${encodeURIComponent(c)}/xml`:'';
+  let remoteError='';
+  if(remote){
+    try{return await request(remote,xml,120000)}catch(e){
+      if(e?.name==='AbortError' || e?.name==='TimeoutError') remoteError='Remote relay timeout (120 sec)';
+      else remoteError=`Remote relay fetch failed: ${e?.message||e}`;
+    }
+  }
+  try{return await request(`${local}/tally/xml`,xml,120000)}catch(e){
+    const localError=(e?.name==='AbortError'||e?.name==='TimeoutError')?'Local connector timeout (120 sec)':`Local connector fetch failed: ${e?.message||e}`;
+    throw Error(`${remoteError?remoteError+'; ':''}${localError}. Connector ${local} par running hona chahiye.`)
+  }
+}
 const companyTag=()=>selected()?.Name?`<SVCURRENTCOMPANY>${esc(selected().Name)}</SVCURRENTCOMPANY>`:'';
 async function collection(name,type,fetches,extra='',useCompany=true){return post(`<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>${name}</ID></HEADER><BODY><DESC><STATICVARIABLES><SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>${useCompany?companyTag():''}${extra}</STATICVARIABLES><TDL><TDLMESSAGE><COLLECTION NAME="${name}" ISMODIFY="No"><TYPE>${type}</TYPE><FETCH>${fetches}</FETCH></COLLECTION></TDLMESSAGE></TDL></DESC></BODY></ENVELOPE>`)}
 function parse(raw,tags){const d=new DOMParser().parseFromString(String(raw||''),'text/xml');const er=[...d.querySelectorAll('LINEERROR,ERROR')].map(x=>x.textContent.trim()).filter(Boolean);if(er.length)throw Error(er.join(' | '));return [...d.querySelectorAll('LEDGER,STOCKITEM,VOUCHER,COMPANY')].map(n=>{const o={};tags.forEach(t=>{const q=n.querySelector(t)||n.querySelector(t.toUpperCase());o[t]=(q?.textContent||n.getAttribute(t)||'').trim()});return o}).filter(o=>Object.values(o).some(Boolean))}
