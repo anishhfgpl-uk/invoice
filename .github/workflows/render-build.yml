@@ -46,6 +46,14 @@ jobs:
 
           cd .render-src
           npm ci
+          if ! grep -q 'export function formatINR' src/utils/tallyParser.ts; then
+            cat >> src/utils/tallyParser.ts <<'EOF'
+
+export function formatINR(value: number): string {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(Number(value) || 0);
+}
+EOF
+          fi
           npm run build
           cd ..
 
