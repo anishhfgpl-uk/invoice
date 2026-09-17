@@ -14,12 +14,9 @@ services:
     name: invoice-1
     rootDir: invoice-1
     buildCommand: npm install && npm run build
-    staticPublishPath: dist
+    staticPublishPath: dist/invoice
     routes:
-      - type: rewrite
-        source: /invoice/*
-        destination: /*
       - type: rewrite
         source: /*
         destination: /index.html
-    # Force fresh deployment of the current clean invoice build
+    # Serve the Vite base /invoice/ build from the static publish root
