@@ -22,3 +22,4 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
+    # Force fresh deployment of the current clean invoice build
