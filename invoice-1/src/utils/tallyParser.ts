@@ -45,7 +45,6 @@ export function parseTallyXML(xmlString: string, currentCompanyId: string): Pars
       return result;
     }
 
-    // Company master import remains supported.
     xmlDoc.querySelectorAll('COMPANY, REMOTECMPINFO').forEach((node) => {
       const name = node.getAttribute('NAME') || firstText(node, ['NAME', 'BASICCOMPANYFORMALNAME', 'CMPNAME']);
       if (!name) return;
@@ -65,7 +64,6 @@ export function parseTallyXML(xmlString: string, currentCompanyId: string): Pars
     result.counts.companies = result.companies.length;
     const targetCompId = result.companies[0]?.id || currentCompanyId;
 
-    // Ledger masters.
     xmlDoc.querySelectorAll('LEDGER').forEach((node) => {
       const name = node.getAttribute('NAME') || firstText(node, ['NAME']);
       const parent = firstText(node, ['PARENT']);
@@ -87,7 +85,6 @@ export function parseTallyXML(xmlString: string, currentCompanyId: string): Pars
     });
     result.counts.debtors = result.debtors.length;
 
-    // Stock masters.
     xmlDoc.querySelectorAll('STOCKITEM').forEach((node) => {
       const name = node.getAttribute('NAME') || firstText(node, ['NAME']);
       if (!name) return;
@@ -211,3 +208,7 @@ export function exportToTallyXML(company: CompanyProfile, debtors: Debtor[], sto
 }
 
 export const SAMPLE_TALLY_XML = `<?xml version="1.0"?><ENVELOPE><BODY><DATA><TALLYMESSAGE><COMPANY NAME="Apex Traders &amp; Supplies"><NAME>Apex Traders &amp; Supplies</NAME><STATENAME>Delhi</STATENAME></COMPANY><LEDGER NAME="Sample Customer"><NAME>Sample Customer</NAME><PARENT>Sundry Debtors</PARENT></LEDGER><VOUCHER VCHTYPE="Sales" ACTION="Create"><DATE>20240401</DATE><VOUCHERNUMBER>S-001</VOUCHERNUMBER><VOUCHERTYPENAME>Sales</VOUCHERTYPENAME><PARTYLEDGERNAME>Sample Customer</PARTYLEDGERNAME><ALLINVENTORYENTRIES.LIST><STOCKITEMNAME>Sample Glass</STOCKITEMNAME><BILLEDQTY>10 Nos</BILLEDQTY><RATE>100</RATE><AMOUNT>-1000</AMOUNT></ALLINVENTORYENTRIES.LIST><LEDGERENTRIES.LIST><LEDGERNAME>Sample Customer</LEDGERNAME><ISPARTYLEDGER>Yes</ISPARTYLEDGER><AMOUNT>1000</AMOUNT></LEDGERENTRIES.LIST></VOUCHER></TALLYMESSAGE></DATA></BODY></ENVELOPE>`;
+
+export function formatINR(value: number): string {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(Number(value) || 0);
+}
