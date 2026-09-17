@@ -25,13 +25,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Package branding and Tally Connect
+      - name: Build clean Render deploy copy
         shell: bash
         run: |
           set -e
           python3 - <<'PY'
           from pathlib import Path
-          import zipfile, os, re, shutil
+          import zipfile, re, shutil
 
           zpath = Path('tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip')
           connector = Path('tally-connector/live-tally.js')
@@ -40,70 +40,49 @@ jobs:
           if not connector.exists(): raise SystemExit('live-tally.js not found')
           if not company_fix.exists(): raise SystemExit('company-list-fix.js not found')
 
-          with zipfile.ZipFile(zpath, 'r') as zin:
-              names = zin.namelist()
-              index_name = next((n for n in names if n.rstrip('/') == 'index.html' or n.endswith('/index.html')), None)
-              if not index_name: raise SystemExit('index.html not found')
-              files = {n: zin.read(n) for n in names}
-              index = files[index_name].decode('utf-8', errors='replace')
-
-              for n in list(files):
-                  if any(n.endswith(x) for x in ('tally-connector-live.js','live-tally.js','invoice-connector-ui.js','safe-live.js','company-list-fix.js')):
-                      del files[n]
-
-              index = re.sub(r'(?is)<!--\s*ANISH_REMOTE_TALLY_CONNECTOR\s*-->.*?<!--\s*/ANISH_REMOTE_TALLY_CONNECTOR\s*-->','',index)
-              index = re.sub(r'(?is)<script[^>]*(?:tally-connector-live|live-tally|invoice-connector-ui|safe-live|company-list-fix)\.js[^>]*>.*?</script>\s*','',index)
-              index = re.sub(r'(?is)<script[^>]*id=["\'](?:anish-tally-connector|anish-company-list-fix)["\'][^>]*>.*?</script>\s*','',index)
-              index = re.sub(r'(?is)<script[^>]*(?:id=["\'](?:anish-tally-connector|anish-company-list-fix)["\']|id=["\']tallysync[^"\']*["\'])[^>]*>.*?</script>\s*','',index)
-              index = re.sub(r'(?is)function\s+brand\s*\(\)\s*\{.*?function\s+panel\s*\(\)', '', index)
-              index = re.sub(r'(?is)window\.TallySyncConnector.*?(?:\n|;)', '', index)
-              index = re.sub(r'(?is)<!--\s*ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND\s*-->.*?<!--\s*/ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND\s*-->','',index)
-              index = re.sub(r'(?is)<style[^>]*id=["\']anish-technologies-(?:brand|persistent-brand)[^>]*>.*?</style>\s*','',index)
-
-              brand = '''<!-- ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->
-          <style id="anish-technologies-persistent-brand">
-          body::before{content:"ANISH TECHNOLOGIES" !important;display:block !important;width:100% !important;box-sizing:border-box !important;background:#0b1220 !important;color:#fff !important;text-align:center !important;padding:16px 12px !important;font-family:Arial,Helvetica,sans-serif !important;font-size:clamp(24px,4vw,38px) !important;font-weight:900 !important;letter-spacing:3px !important;line-height:1.1 !important;border-bottom:3px solid #2563eb !important;position:relative !important;z-index:2147483000 !important}
-          </style>
-          <!-- /ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND -->'''
-              p=index.lower().find('</head>')
-              index=(index[:p]+brand+'\n'+index[p:]) if p>=0 else brand+'\n'+index
-
-              connector_js=connector.read_text(encoding='utf-8').replace('</script>','<\\/script>')
-              company_js=company_fix.read_text(encoding='utf-8').replace('</script>','<\\/script>')
-              inline='<script id="anish-tally-connector">\n'+connector_js+'\n</script>\n<script id="anish-company-list-fix">\n'+company_js+'\n</script>'
-              p=index.lower().rfind('</body>')
-              index=(index[:p]+inline+'\n'+index[p:]) if p>=0 else index+'\n'+inline
-
-              download_js='''<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>'''
-
-              # Permanent Tally Connect button. This is injected by the
-              # packaging workflow itself so later automated packaging cannot
-              # overwrite/remove it.
-              connect_js='''<script id="anish-permanent-tally-connect">(()=>{function openTally(){const m=document.getElementById("ts-modal");if(m){m.style.display="flex";return}const b=document.getElementById("ts-connect-btn");if(b){b.click();return}let n=0;const t=setInterval(()=>{const mm=document.getElementById("ts-modal"),bb=document.getElementById("ts-connect-btn");if(mm){mm.style.display="flex";clearInterval(t)}else if(bb){bb.click();clearInterval(t)}else if(++n>60){clearInterval(t);alert("Tally Connector load nahi hua. Black connector window open rakhein.")}},100)}function add(){if(document.getElementById("tally-top-connect-btn"))return;const b=document.createElement("button");b.id="tally-top-connect-btn";b.type="button";b.textContent="🔗 Tally Connect";b.onclick=openTally;b.style.cssText="position:fixed!important;top:14px!important;right:18px!important;z-index:2147483647!important;padding:11px 18px!important;border:0!important;border-radius:10px!important;background:#2563eb!important;color:#fff!important;font:800 14px Arial!important;cursor:pointer!important;box-shadow:0 6px 18px #0005!important;pointer-events:auto!important";document.body.appendChild(b);window.openTallyNow=openTally}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",add);else add()})();</script>'''
-
-              p=index.lower().rfind('</body>')
-              extra=download_js+'\n'+connect_js+'\n'
-              index=(index[:p]+extra+index[p:]) if p>=0 else index+'\n'+extra
-              files[index_name]=index.encode('utf-8')
-
-              tmp=zpath.with_suffix('.clean.tmp.zip')
-              with zipfile.ZipFile(tmp,'w',zipfile.ZIP_DEFLATED) as zout:
-                  for n,data in files.items(): zout.writestr(n,data)
-              os.replace(tmp,zpath)
-
-          deploy=Path('invoice-1')
+          tmp = Path('.render-extract')
+          deploy = Path('invoice-1')
+          if tmp.exists(): shutil.rmtree(tmp)
           if deploy.exists(): shutil.rmtree(deploy)
-          tmpdir=Path('.render-extract')
-          if tmpdir.exists(): shutil.rmtree(tmpdir)
-          tmpdir.mkdir()
-          with zipfile.ZipFile(zpath,'r') as z: z.extractall(tmpdir)
-          idx=next(tmpdir.rglob('index.html'),None)
-          if not idx: raise SystemExit('index.html not found after packaging')
-          root=idx.parent
-          shutil.copytree(root, deploy, dirs_exist_ok=True)
-          shutil.rmtree(tmpdir)
-          print('Render deploy directory:', deploy.resolve())
-          print('Render index:', (deploy/'index.html').resolve())
+          tmp.mkdir()
+
+          with zipfile.ZipFile(zpath, 'r') as z:
+              z.extractall(tmp)
+
+          # Pick the real application root. The ZIP may contain an extra
+          # wrapper directory (for example invoice/invoice/). Prefer the
+          # directory containing package.json; otherwise use index.html's
+          # parent. This prevents Render from publishing invoice-1/invoice/.
+          roots = [p.parent for p in tmp.rglob('package.json')]
+          if roots:
+              root = roots[0]
+          else:
+              idx = next(tmp.rglob('index.html'), None)
+              if not idx: raise SystemExit('index.html not found after extraction')
+              root = idx.parent
+
+          shutil.copytree(root, deploy)
+          index_path = deploy / 'index.html'
+          if not index_path.exists():
+              raise SystemExit(f'Render index not found: {index_path}')
+
+          index = index_path.read_text(encoding='utf-8', errors='replace')
+          # Remove old generated connector/brand injections from packaged HTML.
+          index = re.sub(r'(?is)<!--\s*ANISH_REMOTE_TALLY_CONNECTOR\s*-->.*?<!--\s*/ANISH_REMOTE_TALLY_CONNECTOR\s*-->', '', index)
+          index = re.sub(r'(?is)<script[^>]*(?:tally-connector-live|live-tally|invoice-connector-ui|safe-live|company-list-fix)\.js[^>]*>.*?</script>\s*', '', index)
+          index = re.sub(r'(?is)<script[^>]*id=["\'](?:anish-tally-connector|anish-company-list-fix|anish-permanent-tally-connect)["\'][^>]*>.*?</script>\s*', '', index)
+          index = re.sub(r'(?is)<style[^>]*id=["\']anish-technologies-(?:brand|persistent-brand)[^>]*>.*?</style>\s*', '', index)
+          index = re.sub(r'(?is)<!--\s*ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND\s*-->.*?<!--\s*/ANISH_TECHNOLOGIES_PERSISTENT_TOP_BRAND\s*-->', '', index)
+
+          connector_js = connector.read_text(encoding='utf-8').replace('</script>', '<\\/script>')
+          company_js = company_fix.read_text(encoding='utf-8').replace('</script>', '<\\/script>')
+          inline = '<script id="anish-tally-connector">\n' + connector_js + '\n</script>\n<script id="anish-company-list-fix">\n' + company_js + '\n</script>'
+          p = index.lower().rfind('</body>')
+          index = index[:p] + inline + '\n' + index[p:] if p >= 0 else index + '\n' + inline
+
+          index_path.write_text(index, encoding='utf-8')
+          print('Render app root:', root)
+          print('Render index:', index_path)
           PY
 
       - name: Commit packaged app and Render deploy copy
@@ -112,7 +91,7 @@ jobs:
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "tallysync-pro---tally-import,-ledger-ageing-&-gst-invoicing (1).zip" invoice-1
+          git add invoice-1
           if git diff --cached --quiet; then echo 'No packaging changes.'; exit 0; fi
-          git commit -m "Publish packaged invoice app for Render"
+          git commit -m "Fix Render app root and clean generated HTML"
           git push origin HEAD:main
