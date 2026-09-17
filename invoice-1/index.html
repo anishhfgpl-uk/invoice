@@ -11,34 +11,30 @@
     <link rel="stylesheet" href="./anish-brand.css" />
     <script>
       (() => {
-        const KEY = 'tallysync_connector_url';
-        const DEFAULT = 'http://127.0.0.1:9101';
-        const nativeFetch = window.fetch.bind(window);
-        const getBase = () => localStorage.getItem(KEY) || DEFAULT;
-        const rewrite = (input) => {
-          try {
-            const original = typeof input === 'string' ? new URL(input, window.location.href) : new URL(input.url);
-            if ((original.hostname === '127.0.0.1' || original.hostname === 'localhost') && original.port === '9000') {
-              const connector = new URL(getBase());
-              original.protocol = connector.protocol;
-              original.hostname = connector.hostname;
-              original.port = connector.port;
-              return original.toString();
-            }
-          } catch (_) {}
-          return input;
-        };
-        window.fetch = (input, init) => nativeFetch(rewrite(input), init);
-        window.tallySync = window.tallySync || {};
-        Object.defineProperty(window.tallySync, 'connectorUrl', {
-          configurable: true,
-          get: getBase,
-          set: (value) => localStorage.setItem(KEY, String(value || DEFAULT).trim().replace(/\/$/, ''))
-        });
+        const KEY='tallysync_connector_url', CODE='tallysync_office_code';
+        const DEFAULT='http://127.0.0.1:9101';
+        const relay='https://tally-relay-anil-sharma.onrender.com';
+        const base=()=>localStorage.getItem(KEY)||DEFAULT;
+        const esc=s=>String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
+        const nativeFetch=window.fetch.bind(window);
+        const rewrite=input=>{try{const u=typeof input==='string'?new URL(input,location.href):new URL(input.url);if((u.hostname==='127.0.0.1'||u.hostname==='localhost')&&u.port==='9000'){const c=new URL(base());u.protocol=c.protocol;u.hostname=c.hostname;u.port=c.port;return u.toString()}}catch(e){}return input};
+        window.fetch=(input,init)=>nativeFetch(rewrite(input),init);
+        window.tallySync=window.tallySync||{};
+        Object.defineProperty(window.tallySync,'connectorUrl',{configurable:true,get:base,set:v=>localStorage.setItem(KEY,String(v||DEFAULT).trim().replace(/\/$/,''))});
+        function init(){
+          if(document.getElementById('tally-connect-float'))return;
+          const wrap=document.createElement('div');wrap.id='tally-connect-float';wrap.style.cssText='position:fixed;right:24px;bottom:24px;z-index:999999;font-family:Arial,sans-serif';
+          wrap.innerHTML=`<button id="tally-open" style="padding:13px 18px;border:0;border-radius:12px;background:#0f172a;color:#fff;font-weight:800;box-shadow:0 8px 24px #0003;cursor:pointer">🔗 Test & Connect Tally</button><div id="tally-modal" style="display:none;position:fixed;inset:0;background:#0f172a99;align-items:center;justify-content:center"><div style="background:#fff;width:min(560px,92vw);border-radius:18px;box-shadow:0 20px 60px #0005;overflow:hidden"><div style="padding:18px 22px;background:#0f172a;color:#fff"><b style="font-size:20px">Tally Sync Hub</b><div style="font-size:12px;opacity:.75;margin-top:3px">Connect this browser to your office Tally</div></div><div style="padding:20px"><label style="font-size:12px;font-weight:700">Remote Office Code</label><input id="tally-code" value="${esc(localStorage.getItem(CODE)||'ANISH-31964181')}" style="width:100%;box-sizing:border-box;margin:6px 0 14px;padding:11px;border:1px solid #cbd5e1;border-radius:9px"><label style="font-size:12px;font-weight:700">Connector URL</label><input id="tally-url" value="${esc(base())}" style="width:100%;box-sizing:border-box;margin:6px 0 14px;padding:11px;border:1px solid #cbd5e1;border-radius:9px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="tally-test" style="padding:10px 14px;border:0;border-radius:9px;background:#d97706;color:#fff;font-weight:800;cursor:pointer">Test & Connect</button><button id="tally-company" style="padding:10px 14px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;font-weight:700;cursor:pointer">Import Company</button><button id="tally-close" style="padding:10px 14px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;font-weight:700;cursor:pointer">Close</button></div><div id="tally-status" style="margin-top:15px;padding:11px;border-radius:9px;background:#f8fafc;font-size:12px;white-space:pre-wrap">Ready.</div></div></div></div>`;
+          document.body.appendChild(wrap);
+          const q=s=>wrap.querySelector(s),modal=q('#tally-modal'),status=q('#tally-status');
+          q('#tally-open').onclick=()=>modal.style.display='flex';q('#tally-close').onclick=()=>modal.style.display='none';
+          async function request(url,xml){const r=await nativeFetch(url,{method:'POST',headers:{'Content-Type':'text/xml;charset=utf-8'},body:xml,signal:AbortSignal.timeout(30000)});const t=await r.text();if(!r.ok)throw Error(t.slice(0,500)||`HTTP ${r.status}`);return t}
+          async function test(){const code=q('#tally-code').value.trim().toUpperCase(),url=q('#tally-url').value.trim()||DEFAULT;localStorage.setItem(CODE,code);localStorage.setItem(KEY,url);status.textContent='⏳ Connecting to Tally...';const xml='<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>Company Collection</ID></HEADER><BODY><DESC><STATICVARIABLES><SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT></STATICVARIABLES><TDL><TDLMESSAGE><COLLECTION NAME="Company Collection"><TYPE>Company</TYPE><FETCH>Name,Guid,GSTIN,StateName</FETCH></COLLECTION></TDLMESSAGE></TDL></DESC></BODY></ENVELOPE>';try{let raw='';if(code){try{raw=await request(`${relay}/api/device/${encodeURIComponent(code)}/xml`,xml)}catch(e){}}if(!raw)raw=await request(`${url.replace(/\/$/,'')}/tally/xml`,xml);const m=raw.match(/<NAME>([^<]+)<\/NAME>/i);status.textContent='✅ Tally Connected\n'+(m?'Company: '+m[1]:'Tally response received successfully.')}catch(e){status.textContent='❌ Connection failed\n'+(e?.message||e)+'\n\nCheck that Tally is open and connector is running.'}}
+          q('#tally-test').onclick=test;q('#tally-company').onclick=test;
+        }
+        if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
       })();
     </script>
-    <!-- Tally Sync Hub connector UI -->
-    <script src="./tally-connector/live-tally.js"></script>
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased font-['Plus_Jakarta_Sans',sans-serif]">
     <div id="root"></div>
