@@ -49,10 +49,6 @@ jobs:
           with zipfile.ZipFile(zpath, 'r') as z:
               z.extractall(tmp)
 
-          # Pick the real application root. The ZIP may contain an extra
-          # wrapper directory (for example invoice/invoice/). Prefer the
-          # directory containing package.json; otherwise use index.html's
-          # parent. This prevents Render from publishing invoice-1/invoice/.
           roots = [p.parent for p in tmp.rglob('package.json')]
           if roots:
               root = roots[0]
@@ -67,7 +63,6 @@ jobs:
               raise SystemExit(f'Render index not found: {index_path}')
 
           index = index_path.read_text(encoding='utf-8', errors='replace')
-          # Remove old generated connector/brand injections from packaged HTML.
           index = re.sub(r'(?is)<!--\s*ANISH_REMOTE_TALLY_CONNECTOR\s*-->.*?<!--\s*/ANISH_REMOTE_TALLY_CONNECTOR\s*-->', '', index)
           index = re.sub(r'(?is)<script[^>]*(?:tally-connector-live|live-tally|invoice-connector-ui|safe-live|company-list-fix)\.js[^>]*>.*?</script>\s*', '', index)
           index = re.sub(r'(?is)<script[^>]*id=["\'](?:anish-tally-connector|anish-company-list-fix|anish-permanent-tally-connect)["\'][^>]*>.*?</script>\s*', '', index)
