@@ -20,43 +20,71 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Prepare Render directory
         shell: bash
         run: |
           set -e
           rm -rf .render-src
           cp -R invoice-1 .render-src
+
           cat > .render-src/index.html <<'EOF'
-          <!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>TallySync Pro</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <title>TallySync Pro</title>
+            </head>
+            <body>
+              <div id="root"></div>
+              <script type="module" src="/src/main.tsx"></script>
+            </body>
+          </html>
           EOF
+
           cd .render-src
           npm ci
           npm run build
           cd ..
+
           python3 - <<'PY'
           from pathlib import Path
-          import shutil
-          dist=Path('.render-src/dist'); out=Path('invoice-1/invoice')
-          if not dist.exists(): raise SystemExit('dist missing')
-          if out.exists(): shutil.rmtree(out)
-          shutil.copytree(dist,out)
-          live=Path('tally-connector/live-tally.js').read_text(encoding='utf-8')
-          fix=Path('tally-connector/company-list-fix.js').read_text(encoding='utf-8')
-          (out/'tally-connector.js').write_text(live+'\n'+fix+'\n',encoding='utf-8')
-          html=(out/'index.html').read_text(encoding='utf-8')
-          html=html.replace('</head>','''<style>body::before{content:"ANISH TECHNOLOGIES";display:block;width:100%;box-sizing:border-box;padding:16px;text-align:center;background:#0b1220;color:white;font:bold 30px Arial}</style></head>''')
-          html=html.replace('<body>','''<body><button id="tally-top-connect-btn" type="button" onclick="window.openTallyNow&&window.openTallyNow()" style="position:fixed;top:14px;right:18px;z-index:2147483647;padding:11px 18px;border:0;border-radius:10px;background:#2563eb;color:#fff;font:800 14px Arial;cursor:pointer;box-shadow:0 6px 18px #0005">🔗 Tally Connect</button>''')
-          html=html.replace('</body>','''<script src="/invoice/tally-connector.js?v=8"></script><script>window.openTallyNow=function(){var m=document.getElementById('ts-modal');if(m){m.style.display='flex';return true}var b=document.getElementById('ts-connect-btn');if(b){b.click();return true}window.dispatchEvent(new Event('tally-connect'));setTimeout(function(){var mm=document.getElementById('ts-modal');var bb=document.getElementById('ts-connect-btn');if(mm)mm.style.display='flex';else if(bb)bb.click()},300);return true};</script></body>''')
-          (out/'index.html').write_text(html,encoding='utf-8')
+          import shutil, re
+
+          dist = Path('.render-src/dist')
+          out = Path('invoice-1/invoice')
+          if not dist.exists():
+              raise SystemExit('dist missing')
+
+          if out.exists():
+              shutil.rmtree(out)
+          shutil.copytree(dist, out)
+
+          # Add the connector without adding the old black header or generated
+          # fixed button. The React app can handle Tally connection itself.
+          live = Path('tally-connector/live-tally.js').read_text(encoding='utf-8')
+          fix = Path('tally-connector/company-list-fix.js').read_text(encoding='utf-8')
+          (out / 'tally-connector.js').write_text(live + '\n' + fix + '\n', encoding='utf-8')
+
+          html_path = out / 'index.html'
+          html = html_path.read_text(encoding='utf-8', errors='replace')
+          html = re.sub(r'(?is)<style[^>]*id=["\']anish-technologies-(?:brand|persistent-brand)[^>]*>.*?</style>\s*', '', html)
+          html = re.sub(r'(?is)<style>body::before\{content:[^}]+\}</style>\s*', '', html)
+          html = re.sub(r'(?is)<script[^>]*id=["\']anish-permanent-tally-connect["\'][^>]*>.*?</script>\s*', '', html)
+          html = html.replace('</body>', '<script src="/invoice/tally-connector.js?v=9"></script></body>')
+          html_path.write_text(html, encoding='utf-8')
           PY
+
           rm -rf .render-src
+
       - name: Commit Render-ready build
         shell: bash
         run: |
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add invoice-1
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m "Deploy direct Tally Connect handler"
+          git add invoice-1/invoice
+          if git diff --cached --quiet; then echo 'No Render build changes.'; exit 0; fi
+          git commit -m "Fix Render invoice route and clean build"
           git push origin HEAD:main
