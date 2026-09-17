@@ -46,6 +46,18 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'tally_hub', label: 'Tally Import/Export', icon: UploadCloud },
   ];
 
+  const handleConnectTally = () => {
+    // Open the existing connector popup created by tally-connector.js.
+    // Do not navigate away from the React app or open an HTML file.
+    const connectorButton = document.getElementById('ts-connect-btn') as HTMLButtonElement | null;
+    if (connectorButton) {
+      connectorButton.click();
+      return;
+    }
+    // Fallback if the connector script has not loaded yet.
+    setActiveTab('tally_hub');
+  };
+
   return (
     <>
       <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-xs">
@@ -104,7 +116,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       <button
         id="tally-connect-bottom-btn"
-        onClick={() => setActiveTab('tally_hub')}
+        onClick={handleConnectTally}
         title="Connect Tally / Import data"
         className="fixed right-5 bottom-5 z-[60] flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-900 hover:bg-blue-700 text-white text-sm font-extrabold shadow-2xl border border-white/20 transition-all"
       >
