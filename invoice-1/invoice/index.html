@@ -9,5 +9,5 @@
 </head><body><div id="tally-top-connect" style="position:fixed;top:14px;right:18px;z-index:100001"><button type="button" style="padding:11px 18px;border:0;border-radius:10px;background:#2563eb;color:#fff;font:800 14px Arial;cursor:pointer;box-shadow:0 6px 18px #0005">🔗 Tally Connect</button></div>
 <div id="root"></div>
 <script src="/invoice/tally-connector.js"></script>
-<script>(function(){function wire(){var t=document.querySelector("#tally-top-connect button"),b=document.querySelector("#ts-connect-btn");if(t&&b){t.onclick=function(){b.click()};return true}return false}if(!wire()){var n=0,i=setInterval(function(){if(wire()||++n>50)clearInterval(i)},200)}})();</script>
+<script>(function(){function wire(){var t=document.querySelector("#tally-top-connect button");if(!t)return false;t.onclick=function(){var m=document.getElementById("ts-modal");var b=document.getElementById("ts-connect-btn");if(m){m.style.display="flex";return}if(b){b.click();return}setTimeout(function(){var mm=document.getElementById("ts-modal");var bb=document.getElementById("ts-connect-btn");if(mm)mm.style.display="flex";else if(bb)bb.click();},300)};return true}if(!wire()){var n=0,i=setInterval(function(){if(wire()||++n>50)clearInterval(i)},200)}})();</script>
 </body></html>
