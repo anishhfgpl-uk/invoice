@@ -1,3 +1,0 @@
-Trigger Render rebuild for the /invoice/ deployment.
-Updated for Tally Connect direct-click fix.
-Deployment timestamp marker: 2026-09-17T00:00:00Z
