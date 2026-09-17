@@ -16,7 +16,7 @@
       status.textContent='⏳ Tally se company read ho rahi hai...';
       const relay='https://tally-relay-anil-sharma.onrender.com';
       const endpoint=code?`${relay}/api/device/${encodeURIComponent(code)}/xml`:`${url}/tally/xml`;
-      const xml='<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>Company Collection</ID></HEADER><BODY><DESC><STATICVARIABLES><SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT></STATICVARIABLES><TDL><TDLMESSAGE><COLLECTION NAME="Company Collection" ISMODIFY="No" ISFIXED="No"><TYPE>Company</TYPE><FETCH>Name,Guid,MailingName,StateName,PinCode,PhoneNumber,Email,GSTIN</FETCH></COLLECTION></TDLMESSAGE></TDL></DESC></BODY></ENVELOPE>';
+      const xml='<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>Company Collection</ID></HEADER><BODY><DESC><STATICVARIABLES><SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT></STATICVARIABLES><TDL><TDLMESSAGE><COLLECTION NAME="Company Collection" ISMODIFY="No" ISFIXED="No"><TYPE>Company</TYPE><FETCH>Name,Guid,MailingName,StateName,PinCode,PhoneNumber,Email,GSTIN</FETCH></COLLECTION></TDL></DESC></BODY></ENVELOPE>';
       try{
         const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'text/xml;charset=utf-8'},body:xml,signal:AbortSignal.timeout(45000)});
         const raw=await r.text();
@@ -34,7 +34,7 @@
           if(a&&n.tagName) {name=a;break;}
         }
         if(!name){
-          const m=raw.match(/<COMPANY[^>]*\bNAME\s*=\s*["']([^"']+)["']/i)||raw.match(/<NAME[^>]*>([^<]+)<\/NAME>/i);
+          const m=raw.match(/<COMPANY[^>]*\bNAME\s*=\s*[\"']([^\"']+)[\"']/i)||raw.match(/<NAME[^>]*>([^<]+)<\/NAME>/i);
           if(m)name=(m[1]||'').trim();
         }
         if(!name)throw Error('Tally response me company name nahi mila. TallyPrime me company open/check karein.');
@@ -60,4 +60,20 @@
     };
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
+})();
+
+/* After invoice import, refresh once so AppContext reads tallysync_invoices_v2. */
+(()=>{
+  let timer=0;
+  const wrap=()=>{
+    const p=window.__tsPanel;
+    if(!p||p.__invoiceReloadWrapped)return false;
+    const original=p.importInvoices;
+    if(typeof original!=='function')return false;
+    p.importInvoices=async(...args)=>{const result=await original(...args);clearTimeout(timer);timer=setTimeout(()=>location.reload(),500);return result};
+    p.__invoiceReloadWrapped=true;
+    return true;
+  };
+  const wait=()=>wrap()||setTimeout(wait,300);
+  wait();
 })();
