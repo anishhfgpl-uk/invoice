@@ -1,5 +1,6 @@
 name: Build Render Static App v2
 
+# Sales Import verified build: formatINR is now exported by tallyParser.ts.
 on:
   push:
     branches: [main]
