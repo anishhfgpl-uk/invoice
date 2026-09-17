@@ -36,15 +36,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { companies, activeCompany, activeCompanyId, setActiveCompanyId, resetToDemoData } = useApp();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const openTallyConnector = () => {
-    const button = document.querySelector<HTMLButtonElement>('#ts-connect-btn');
-    if (button) {
-      button.click();
-      return;
-    }
-    window.setTimeout(() => document.querySelector<HTMLButtonElement>('#ts-connect-btn')?.click(), 300);
-  };
-
   const navItems = [
     { id: 'ledger', label: 'Ledger & Ageing', icon: FileSpreadsheet, badge: 'Key' },
     { id: 'invoices', label: 'Offline Invoices', icon: Receipt },
@@ -161,17 +152,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Quick Actions */}
           <div className="flex items-center gap-2">
-            <button
-              id="tally-top-connect-react"
-              onClick={openTallyConnector}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition cursor-pointer"
-              title="Connect website with TallyPrime"
-            >
-              <UploadCloud className="w-4 h-4" />
-              <span className="hidden sm:inline">Tally Connect</span>
-              <span className="sm:hidden">Tally</span>
-            </button>
-
             <button
               id="live-deploy-modal-btn"
               onClick={onOpenDeploymentGuide}

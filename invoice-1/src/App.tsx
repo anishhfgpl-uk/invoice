@@ -79,7 +79,7 @@ const MainAppContent: React.FC = () => {
 
         {activeTab === 'gstr1' && <Gstr1View />}
 
-        {activeTab === 'tally_hub' && <TallySyncHub />}
+        {activeTab === 'sync' && <TallySyncHub />}
       </main>
 
       {/* Footer bar */}
