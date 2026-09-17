@@ -18,6 +18,9 @@ services:
     staticPublishPath: dist
     routes:
       - type: rewrite
+        source: /invoice
+        destination: /index.html
+      - type: rewrite
         source: /invoice/*
         destination: /*
       - type: rewrite
