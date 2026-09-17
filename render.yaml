@@ -12,7 +12,9 @@ services:
   - type: web
     runtime: static
     name: invoice-1
-    staticPublishPath: ./invoice-1
+    rootDir: invoice-1
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
     routes:
       - type: rewrite
         source: /invoice/*
