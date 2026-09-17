@@ -30,19 +30,7 @@ jobs:
           rm -rf invoice
           cp -R dist invoice
           cd ..
-          node - <<'NODE'
-          const fs = require('fs');
-          const path = 'invoice-1/invoice';
-          const live = fs.readFileSync('tally-connector/live-tally.js', 'utf8');
-          const fix = fs.readFileSync('tally-connector/company-list-fix.js', 'utf8');
-          const hotfix = fs.readFileSync('tally-connector/company-test-hotfix.js', 'utf8');
-          fs.writeFileSync(`${path}/tally-connector.js`, `${live}\n${fix}\n${hotfix}\n`, 'utf8');
-          const indexPath = `${path}/index.html`;
-          let html = fs.readFileSync(indexPath, 'utf8');
-          html = html.replace(/\/invoice\/tally-connector\.js\?v=\d+/g, '/invoice/tally-connector.js?v=16');
-          if (!html.includes('/invoice/tally-connector.js?v=16')) html = html.replace('</body>', '<script src="/invoice/tally-connector.js?v=16"></script></body>');
-          fs.writeFileSync(indexPath, html, 'utf8');
-          NODE
+          cp tally-connector/live-tally.js invoice-1/invoice/tally-connector.js
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add invoice-1/invoice
