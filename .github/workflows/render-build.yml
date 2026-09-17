@@ -72,7 +72,7 @@ jobs:
           html = re.sub(r'(?is)<style[^>]*id=["\']anish-technologies-(?:brand|persistent-brand)[^>]*>.*?</style>\s*', '', html)
           html = re.sub(r'(?is)<style>body::before\{content:[^}]+\}</style>\s*', '', html)
           html = re.sub(r'(?is)<script[^>]*id=["\']anish-permanent-tally-connect["\'][^>]*>.*?</script>\s*', '', html)
-          html = html.replace('</body>', '<script src="/invoice/tally-connector.js?v=12"></script></body>')
+          html = html.replace('</body>', '<script src="/invoice/tally-connector.js?v=13"></script></body>')
           html_path.write_text(html, encoding='utf-8')
           PY
 
