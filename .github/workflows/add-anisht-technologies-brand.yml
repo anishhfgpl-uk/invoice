@@ -75,8 +75,15 @@ jobs:
               index=(index[:p]+inline+'\n'+index[p:]) if p>=0 else index+'\n'+inline
 
               download_js='''<script id="anish-connector-download-ui">(()=>{function f(){if(document.getElementById("anish-connector-download"))return;const a=document.createElement("a");a.id="anish-connector-download";a.href="https://github.com/anishhfgpl-uk/invoice/raw/refs/heads/main/tally-connector/START-TALLY-CONNECTOR.cmd";a.download="START-TALLY-CONNECTOR.cmd";a.target="_blank";a.rel="noopener";a.textContent="⬇ Download Tally Connector";a.style.cssText="position:fixed;right:24px;bottom:78px;z-index:99999;padding:12px 18px;border-radius:12px;background:#2563eb;color:#fff;font:800 14px Arial;text-decoration:none;box-shadow:0 8px 25px #0003";document.body.appendChild(a)}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",f);else f()})();</script>'''
+
+              # Permanent Tally Connect button. This is injected by the
+              # packaging workflow itself so later automated packaging cannot
+              # overwrite/remove it.
+              connect_js='''<script id="anish-permanent-tally-connect">(()=>{function openTally(){const m=document.getElementById("ts-modal");if(m){m.style.display="flex";return}const b=document.getElementById("ts-connect-btn");if(b){b.click();return}let n=0;const t=setInterval(()=>{const mm=document.getElementById("ts-modal"),bb=document.getElementById("ts-connect-btn");if(mm){mm.style.display="flex";clearInterval(t)}else if(bb){bb.click();clearInterval(t)}else if(++n>60){clearInterval(t);alert("Tally Connector load nahi hua. Black connector window open rakhein.")}},100)}function add(){if(document.getElementById("tally-top-connect-btn"))return;const b=document.createElement("button");b.id="tally-top-connect-btn";b.type="button";b.textContent="🔗 Tally Connect";b.onclick=openTally;b.style.cssText="position:fixed!important;top:14px!important;right:18px!important;z-index:2147483647!important;padding:11px 18px!important;border:0!important;border-radius:10px!important;background:#2563eb!important;color:#fff!important;font:800 14px Arial!important;cursor:pointer!important;box-shadow:0 6px 18px #0005!important;pointer-events:auto!important";document.body.appendChild(b);window.openTallyNow=openTally}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",add);else add()})();</script>'''
+
               p=index.lower().rfind('</body>')
-              index=(index[:p]+download_js+'\n'+index[p:]) if p>=0 else index+'\n'+download_js
+              extra=download_js+'\n'+connect_js+'\n'
+              index=(index[:p]+extra+index[p:]) if p>=0 else index+'\n'+extra
               files[index_name]=index.encode('utf-8')
 
               tmp=zpath.with_suffix('.clean.tmp.zip')
@@ -84,9 +91,6 @@ jobs:
                   for n,data in files.items(): zout.writestr(n,data)
               os.replace(tmp,zpath)
 
-          # Build a deployable copy for Render. It is flattened so Render's
-          # existing Publish Directory "invoice-1" works without any manual
-          # Build Command configuration.
           deploy=Path('invoice-1')
           if deploy.exists(): shutil.rmtree(deploy)
           tmpdir=Path('.render-extract')
