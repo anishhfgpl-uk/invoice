@@ -17,6 +17,8 @@ services:
     staticPublishPath: dist/invoice
     routes:
       - type: rewrite
+        source: /invoice/*
+        destination: /*
+      - type: rewrite
         source: /*
         destination: /index.html
-    # Serve the Vite base /invoice/ build from the static publish root
