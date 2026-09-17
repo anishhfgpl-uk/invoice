@@ -12,11 +12,11 @@ if not exist "%NODE_EXE%" (
   del /q "%TEMP%\anish-node.zip" >nul 2>&1
 )
 if not exist "%NODE_EXE%" goto fail
-if not exist "%~dp0tally-connector.mjs" (
-  echo Downloading Anish Tally Connector...
-  curl.exe -L --fail --retry 3 "https://raw.githubusercontent.com/anishhfgpl-uk/invoice/main/tally-connector/tally-connector.mjs" -o "%~dp0tally-connector.mjs"
-  if errorlevel 1 goto fail
-)
+
+echo Updating Anish Tally Connector from GitHub...
+curl.exe -L --fail --retry 3 "https://raw.githubusercontent.com/anishhfgpl-uk/invoice/main/tally-connector/tally-connector.mjs" -o "%~dp0tally-connector.mjs"
+if errorlevel 1 goto fail
+
 echo.
 echo ================================================
 echo       ANISH TECHNOLOGIES - TALLY CONNECTOR
@@ -24,6 +24,7 @@ echo ================================================
 echo.
 echo Keep this window open while Tally is connected.
 echo TallyPrime must be running on port 9000.
+echo Relay: https://tally-relay-anil-sharma.onrender.com
 echo.
 "%NODE_EXE%" "%~dp0tally-connector.mjs"
 echo.
@@ -32,7 +33,7 @@ pause >nul
 exit /b 0
 :fail
 echo.
-echo Connector could not start.
+echo Connector could not start or update.
 echo Please check internet access and try again.
 pause
 exit /b 1
