@@ -12,9 +12,30 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      #boot-status { padding: 24px; font: 600 16px system-ui, sans-serif; color: #334155; }
+      #boot-error { display:none; margin:24px; padding:16px; border:1px solid #fecaca; border-radius:12px; background:#fff1f2; color:#991b1b; font:14px system-ui,sans-serif; white-space:pre-wrap; }
+    </style>
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased font-['Plus_Jakarta_Sans',sans-serif]">
-    <div id="root"></div>
+    <div id="root"><div id="boot-status">Loading TallySync Pro…</div></div>
+    <div id="boot-error"></div>
+    <script>
+      window.addEventListener('error', function(e) {
+        var box = document.getElementById('boot-error');
+        if (box && !document.getElementById('root').querySelector('header')) {
+          box.style.display = 'block';
+          box.textContent = 'Application startup error: ' + (e.error && e.error.message ? e.error.message : e.message || 'Unknown error');
+        }
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        var box = document.getElementById('boot-error');
+        if (box && !document.getElementById('root').querySelector('header')) {
+          box.style.display = 'block';
+          box.textContent = 'Application startup error: ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason));
+        }
+      });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
