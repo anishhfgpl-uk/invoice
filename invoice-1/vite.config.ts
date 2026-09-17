@@ -5,7 +5,9 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
-    base: '/invoice/',
+    // Render serves the SPA at /invoice via a rewrite to /index.html.
+    // Use root-relative assets so /invoice/assets/* cannot become a 404.
+    base: '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
