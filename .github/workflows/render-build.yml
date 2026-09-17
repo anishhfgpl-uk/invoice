@@ -65,14 +65,21 @@ jobs:
           live = Path('tally-connector/live-tally.js').read_text(encoding='utf-8')
           fix = Path('tally-connector/company-list-fix.js').read_text(encoding='utf-8')
           hotfix = Path('tally-connector/company-test-hotfix.js').read_text(encoding='utf-8')
-          (out / 'tally-connector.js').write_text(live + '\n' + fix + '\n' + hotfix + '\n', encoding='utf-8')
+          bundle = live + '\n' + fix + '\n' + hotfix + '\n'
+          (out / 'tally-connector.js').write_text(bundle, encoding='utf-8')
+          if '2026-09-17-cors-fix-v2' not in hotfix:
+              raise SystemExit('Tally company hotfix v2 is missing from source')
+          if '2026-09-17-cors-fix-v2' not in bundle:
+              raise SystemExit('Tally company hotfix v2 was not included in generated bundle')
 
           html_path = out / 'index.html'
           html = html_path.read_text(encoding='utf-8', errors='replace')
           html = re.sub(r'(?is)<style[^>]*id=["\']anish-technologies-(?:brand|persistent-brand)[^>]*>.*?</style>\s*', '', html)
           html = re.sub(r'(?is)<style>body::before\{content:[^}]+\}</style>\s*', '', html)
           html = re.sub(r'(?is)<script[^>]*id=["\']anish-permanent-tally-connect["\'][^>]*>.*?</script>\s*', '', html)
-          html = html.replace('</body>', '<script src="/invoice/tally-connector.js?v=13"></script></body>')
+          html = re.sub(r'/invoice/tally-connector\.js\?v=\d+', '/invoice/tally-connector.js?v=16', html)
+          if '/invoice/tally-connector.js?v=16' not in html:
+              html = html.replace('</body>', '<script src="/invoice/tally-connector.js?v=16"></script></body>')
           html_path.write_text(html, encoding='utf-8')
           PY
 
@@ -86,5 +93,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add invoice-1/invoice
           if git diff --cached --quiet; then echo 'No Render build changes.'; exit 0; fi
-          git commit -m "Rebuild invoice app with Tally company connection fix"
+          git commit -m "Rebuild invoice app with verified Tally connector hotfix"
           git push origin HEAD:main
