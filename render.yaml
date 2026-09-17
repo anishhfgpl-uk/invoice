@@ -12,9 +12,10 @@ services:
   - type: web
     runtime: static
     name: invoice-1
+    plan: free
     rootDir: invoice-1
-    buildCommand: npm install && npm run build
-    staticPublishPath: dist/invoice
+    buildCommand: npm install && npm run build && node scripts/publish-connector.mjs
+    staticPublishPath: dist
     routes:
       - type: rewrite
         source: /invoice/*
