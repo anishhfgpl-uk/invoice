@@ -168,7 +168,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{onCompanyEvent()});else onCompanyEvent();
 })();
 /* Tally company test hotfix: robustly reads COMPANY/NAME attributes and activates the company. */
-// deployment trigger: 2026-09-17
+// deployment trigger: 2026-09-17-cors-fix
 (()=>{
   function boot(){
     const btn=document.getElementById('ts-test');
@@ -185,12 +185,21 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       localStorage.removeItem('tallysync_selected_company');
       status.textContent='⏳ Tally se company read ho rahi hai...';
       const relay='https://tally-relay-anil-sharma.onrender.com';
-      const endpoint=code?`${relay}/api/device/${encodeURIComponent(code)}/xml`:`${url}/tally/xml`;
+      const remoteEndpoint=code?`${relay}/api/device/${encodeURIComponent(code)}/xml`:'';
+      const localEndpoint=`${url}/tally/xml`;
       const xml='<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>Company Collection</ID></HEADER><BODY><DESC><STATICVARIABLES><SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT></STATICVARIABLES><TDL><TDLMESSAGE><COLLECTION NAME="Company Collection" ISMODIFY="No" ISFIXED="No"><TYPE>Company</TYPE><FETCH>Name,Guid,MailingName,StateName,PinCode,PhoneNumber,Email,GSTIN</FETCH></COLLECTION></TDLMESSAGE></TDL></DESC></BODY></ENVELOPE>';
-      try{
-        const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'text/xml;charset=utf-8'},body:xml,signal:AbortSignal.timeout(45000)});
+      async function send(endpoint){
+        const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:xml,signal:AbortSignal.timeout(45000)});
         const raw=await r.text();
         if(!r.ok)throw Error(raw.slice(0,500)||`HTTP ${r.status}`);
+        return raw;
+      }
+      try{
+        let raw='',remoteError='';
+        // Local connector is preferred on the office computer. Its own process
+        // can then use the secure relay without the browser doing a CORS preflight.
+        try{ raw=await send(localEndpoint) }
+        catch(e){ remoteError=`Local connector: ${e?.message||e}`; if(!remoteEndpoint)throw e; raw=await send(remoteEndpoint) }
         const doc=new DOMParser().parseFromString(raw,'text/xml');
         const errors=[...doc.getElementsByTagName('LINEERROR'),...doc.getElementsByTagName('ERROR')].map(x=>(x.textContent||'').trim()).filter(Boolean);
         if(errors.length)throw Error(errors.join(' | '));
