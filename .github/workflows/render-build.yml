@@ -60,9 +60,9 @@ jobs:
           (out/'tally-connector.js').write_text(live+'\n'+fix+'\n',encoding='utf-8')
           html=(out/'index.html').read_text(encoding='utf-8')
           brand='<style>body::before{content:"ANISH TECHNOLOGIES";display:block;box-sizing:border-box;width:100%;padding:16px 12px;background:#0b1220;color:#fff;text-align:center;font:900 30px Arial;letter-spacing:3px;border-bottom:3px solid #2563eb}</style>'
-          top='<div id="tally-top-connect" style="position:fixed;top:14px;right:18px;z-index:100001"><button type="button" style="padding:11px 18px;border:0;border-radius:10px;background:#2563eb;color:#fff;font:800 14px Arial;cursor:pointer;box-shadow:0 6px 18px #0005">🔗 Tally Connect</button></div>'
-          inject='<script src="/invoice/tally-connector.js"></script>'
-          helper='''<script>(function(){function wire(){var t=document.querySelector("#tally-top-connect button");if(!t)return false;t.onclick=function(){var m=document.getElementById("ts-modal");var b=document.getElementById("ts-connect-btn");if(m){m.style.display="flex";return}if(b){b.click();return}setTimeout(function(){var mm=document.getElementById("ts-modal");var bb=document.getElementById("ts-connect-btn");if(mm)mm.style.display="flex";else if(bb)bb.click();},300)};return true}if(!wire()){var n=0,i=setInterval(function(){if(wire()||++n>50)clearInterval(i)},200)}})();</script>'''
+          top='<div id="tally-top-connect" style="position:fixed;top:14px;right:18px;z-index:2147483647;pointer-events:auto"><button id="tally-top-connect-btn" type="button" style="padding:11px 18px;border:0;border-radius:10px;background:#2563eb;color:#fff;font:800 14px Arial;cursor:pointer;box-shadow:0 6px 18px #0005;pointer-events:auto">🔗 Tally Connect</button></div>'
+          inject='<script src="/invoice/tally-connector.js?v=7"></script>'
+          helper='''<script>(function(){function openTally(){var m=document.getElementById("ts-modal");if(m){m.style.display="flex";return}var b=document.getElementById("ts-connect-btn");if(b){b.click();return}setTimeout(function(){var mm=document.getElementById("ts-modal");var bb=document.getElementById("ts-connect-btn");if(mm)mm.style.display="flex";else if(bb)bb.click();},500)}function wire(){var t=document.getElementById("tally-top-connect-btn");if(!t)return false;t.onclick=function(e){e.preventDefault();e.stopPropagation();openTally()};t.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();openTally()},true);return true}if(!wire()){var n=0,i=setInterval(function(){if(wire()||++n>100)clearInterval(i)},200)}})();</script>'''
           html=html.replace('</head>',brand+'\n</head>')
           html=html.replace('<body>','<body>'+top)
           html=html.replace('</body>',inject+'\n'+helper+'\n</body>')
@@ -79,7 +79,7 @@ jobs:
           git fetch origin main
           git add invoice-1
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "Fix Tally Connect button wiring"
+          git commit -m "Make Tally Connect button directly clickable"
           git push origin HEAD:main || {
             git pull --rebase origin main
             git push origin HEAD:main
