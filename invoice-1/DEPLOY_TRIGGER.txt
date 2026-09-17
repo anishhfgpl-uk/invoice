@@ -1,1 +1,2 @@
 Trigger Render rebuild for the /invoice/ deployment.
+Updated for Tally Connect direct-click fix.
