@@ -1,13 +1,3 @@
-<!doctype html>
-<html lang="en"><head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>TallySync Pro - Tally Import, Ledger Ageing & GST Invoicing</title>
-  <script type="module" crossorigin src="/invoice/assets/index-DH1aDdmx.js"></script>
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>TallySync Pro</title>  <script type="module" crossorigin src="/invoice/assets/index-DH1aDdmx.js"></script>
   <link rel="stylesheet" crossorigin href="/invoice/assets/index-lyv3FnVH.css">
-<style>body::before{content:"ANISH TECHNOLOGIES";display:block;box-sizing:border-box;width:100%;padding:16px 12px;background:#0b1220;color:#fff;text-align:center;font:900 30px Arial;letter-spacing:3px;border-bottom:3px solid #2563eb}</style>
-</head><body><div id="tally-top-connect" style="position:fixed;top:14px;right:18px;z-index:2147483647;pointer-events:auto"><button id="tally-top-connect-btn" type="button" style="padding:11px 18px;border:0;border-radius:10px;background:#2563eb;color:#fff;font:800 14px Arial;cursor:pointer;box-shadow:0 6px 18px #0005;pointer-events:auto">🔗 Tally Connect</button></div>
-<div id="root"></div>
-<script src="/invoice/tally-connector.js?v=7"></script>
-<script>(function(){function openTally(){var m=document.getElementById("ts-modal");if(m){m.style.display="flex";return}var b=document.getElementById("ts-connect-btn");if(b){b.click();return}setTimeout(function(){var mm=document.getElementById("ts-modal");var bb=document.getElementById("ts-connect-btn");if(mm)mm.style.display="flex";else if(bb)bb.click();},500)}function wire(){var t=document.getElementById("tally-top-connect-btn");if(!t)return false;t.onclick=function(e){e.preventDefault();e.stopPropagation();openTally()};t.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();openTally()},true);return true}if(!wire()){var n=0,i=setInterval(function(){if(wire()||++n>100)clearInterval(i)},200)}})();</script>
-</body></html>
+<style>body::before{content:"ANISH TECHNOLOGIES";display:block;width:100%;box-sizing:border-box;padding:16px;text-align:center;background:#0b1220;color:white;font:bold 30px Arial}</style></head><body><button id="tally-top-connect-btn" type="button" onclick="window.openTallyNow&&window.openTallyNow()" style="position:fixed;top:14px;right:18px;z-index:2147483647;padding:11px 18px;border:0;border-radius:10px;background:#2563eb;color:#fff;font:800 14px Arial;cursor:pointer;box-shadow:0 6px 18px #0005">🔗 Tally Connect</button><div id="root"></div><script src="/invoice/tally-connector.js?v=8"></script><script>window.openTallyNow=function(){var m=document.getElementById('ts-modal');if(m){m.style.display='flex';return true}var b=document.getElementById('ts-connect-btn');if(b){b.click();return true}window.dispatchEvent(new Event('tally-connect'));setTimeout(function(){var mm=document.getElementById('ts-modal');var bb=document.getElementById('ts-connect-btn');if(mm)mm.style.display='flex';else if(bb)bb.click()},300);return true};</script></body></html>
