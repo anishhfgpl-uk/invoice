@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: tally-relay-anish
+    runtime: node
+    plan: free
+    rootDir: tally-relay
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
