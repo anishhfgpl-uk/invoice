@@ -1,5 +1,5 @@
 /* Tally company test hotfix: robustly reads COMPANY/NAME attributes and activates the company. */
-// deployment trigger: 2026-09-17-cors-fix
+// deployment trigger: 2026-09-17-cors-fix-v2
 (()=>{
   function boot(){
     const btn=document.getElementById('ts-test');
@@ -10,7 +10,7 @@
     btn.onclick=async()=>{
       const code=(document.getElementById('ts-code')?.value||'').trim().toUpperCase();
       const url=(document.getElementById('ts-url')?.value||'http://127.0.0.1:9101').trim().replace(/\/$/,'');
-      if(!code&&!url) { status.textContent='❌ Remote Office Code ya Connector URL enter karein'; return; }
+      if(!code&&!url){status.textContent='❌ Remote Office Code ya Connector URL enter karein';return}
       localStorage.setItem('tallysync_office_code',code);
       localStorage.setItem('tallysync_connector_url',url);
       localStorage.removeItem('tallysync_selected_company');
@@ -25,12 +25,15 @@
         if(!r.ok)throw Error(raw.slice(0,500)||`HTTP ${r.status}`);
         return raw;
       }
+      let localError='';
       try{
-        let raw='',remoteError='';
-        // Local connector is preferred on the office computer. Its own process
-        // can then use the secure relay without the browser doing a CORS preflight.
-        try{ raw=await send(localEndpoint) }
-        catch(e){ remoteError=`Local connector: ${e?.message||e}`; if(!remoteEndpoint)throw e; raw=await send(remoteEndpoint) }
+        let raw='';
+        try{raw=await send(localEndpoint)}
+        catch(e){
+          localError=`Local connector: ${e?.message||e}`;
+          if(!remoteEndpoint)throw e;
+          raw=await send(remoteEndpoint);
+        }
         const doc=new DOMParser().parseFromString(raw,'text/xml');
         const errors=[...doc.getElementsByTagName('LINEERROR'),...doc.getElementsByTagName('ERROR')].map(x=>(x.textContent||'').trim()).filter(Boolean);
         if(errors.length)throw Error(errors.join(' | '));
@@ -42,10 +45,19 @@
         const company={Name:name};
         const companyNode=[...doc.getElementsByTagName('*')].find(n=>/^COMPANY$/i.test(n.tagName));
         if(companyNode)for(const k of ['Guid','MailingName','StateName','PinCode','PhoneNumber','Email','GSTIN']){const el=[...companyNode.getElementsByTagName('*')].find(n=>n.tagName.toLowerCase()===k.toLowerCase());company[k]=(el?.textContent||companyNode.getAttribute(k)||companyNode.getAttribute(k.toUpperCase())||'').trim()}
-        localStorage.setItem('tallysync_selected_company',JSON.stringify(company));localStorage.setItem('tallysync_company_profile',JSON.stringify(company));localStorage.setItem('tallysync_companies',JSON.stringify([company]));
-        localStorage.setItem('tallysync_active_comp_v2',`tally_${name.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,80)}`);localStorage.setItem('tallysync_companies_v2',JSON.stringify([{id:`tally_${name.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,80)}`,name:name,formalName:name,gstin:company.GSTIN||'',state:company.StateName||'',pincode:company.PinCode||'',phone:company.PhoneNumber||'',email:company.Email||''}]));
-        window.TallySyncLastCompanyName=name;window.TallySyncActiveCompany=company;window.dispatchEvent(new CustomEvent('tallysync:company-updated',{detail:{companies:[company],selected:company}}));status.innerHTML=`<b style="color:#047857">✅ Tally Connected Successfully</b><br>Company: ${name}<br>GSTIN: ${company.GSTIN||'-'}`;setTimeout(()=>location.reload(),300);
-      }catch(e){status.textContent='❌ '+(e?.message||e)}
+        localStorage.setItem('tallysync_selected_company',JSON.stringify(company));
+        localStorage.setItem('tallysync_company_profile',JSON.stringify(company));
+        localStorage.setItem('tallysync_companies',JSON.stringify([company]));
+        localStorage.setItem('tallysync_active_comp_v2',`tally_${name.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,80)}`);
+        localStorage.setItem('tallysync_companies_v2',JSON.stringify([{id:`tally_${name.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,80)}`,name:name,formalName:name,gstin:company.GSTIN||'',state:company.StateName||'',pincode:company.PinCode||'',phone:company.PhoneNumber||'',email:company.Email||''}]));
+        window.TallySyncLastCompanyName=name;
+        window.TallySyncActiveCompany=company;
+        window.dispatchEvent(new CustomEvent('tallysync:company-updated',{detail:{companies:[company],selected:company}}));
+        status.innerHTML=`<b style="color:#047857">✅ Tally Connected Successfully</b><br>Company: ${name}<br>GSTIN: ${company.GSTIN||'-'}`;
+        setTimeout(()=>location.reload(),300);
+      }catch(e){
+        status.textContent='❌ '+(e?.message||e)+(localError?`\n${localError}`:'');
+      }
     };
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
