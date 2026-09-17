@@ -1,0 +1,37 @@
+name: Build Tally Connector Package
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tally-connector/**'
+      - '.github/workflows/build-tally-connector.yml'
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create connector package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item tally-connector/START-ANISH-TALLY-CONNECTOR.cmd dist/START-ANISH-TALLY-CONNECTOR.cmd
+          Copy-Item tally-connector/tally-connector.mjs dist/tally-connector.mjs
+          @'
+          ANISH TECHNOLOGIES - TALLY CONNECTOR
+          Updated relay: https://tally-relay-anil-sharma.onrender.com
+          Computer code is preserved in .office-code when already created.
+          Run START-ANISH-TALLY-CONNECTOR.cmd while TallyPrime is running on port 9000.
+          '@ | Set-Content dist/README.txt
+          Compress-Archive -Path dist/* -DestinationPath Anish-Tally-Connector-Updated.zip -Force
+
+      - name: Upload connector package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Anish-Tally-Connector-Updated
+          path: Anish-Tally-Connector-Updated.zip
+          retention-days: 30
