@@ -42,14 +42,15 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'debtors', label: 'Debtors (Customers)', icon: Users },
     { id: 'items', label: 'Stock Items', icon: Package },
     { id: 'gstr1', label: 'GSTR-1 Return', icon: FileText, badge: 'Monthly' },
-    // IMPORTANT: App.tsx renders TallySyncHub when activeTab === 'sync'.
-    { id: 'sync', label: 'Tally Sync Hub', icon: UploadCloud },
+    { id: 'tally_hub', label: 'Tally Import/Export', icon: UploadCloud },
   ];
 
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-xs">
+      {/* Top Bar: Company Selector & Global Actions */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
+          {/* Logo & Brand */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-600 text-white flex items-center justify-center font-black tracking-wider shadow-sm text-lg">
               TS
@@ -65,6 +66,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
+          {/* Company Selector Dropdown (Critical user requirement) */}
           <div className="relative">
             <button
               id="company-selector-btn"
@@ -148,6 +150,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
+          {/* Quick Actions */}
           <div className="flex items-center gap-2">
             <button
               id="live-deploy-modal-btn"
@@ -188,6 +191,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
+        {/* Navigation Tabs */}
         <div className="flex items-center space-x-1 overflow-x-auto border-t border-slate-100 py-1.5 scrollbar-none">
           {navItems.map((item) => {
             const Icon = item.icon;
