@@ -45,12 +45,19 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'tally_hub', label: 'Tally Import/Export', icon: UploadCloud },
   ];
 
+  const openTallyConnect = () => {
+    const button = document.getElementById('ts-connect-btn') as HTMLButtonElement | null;
+    if (button) {
+      button.click();
+      return;
+    }
+    window.dispatchEvent(new CustomEvent('tallysync:open-connect'));
+  };
+
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-xs">
-      {/* Top Bar: Company Selector & Global Actions */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo & Brand */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-600 text-white flex items-center justify-center font-black tracking-wider shadow-sm text-lg">
               TS
@@ -66,7 +73,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Company Selector Dropdown (Critical user requirement) */}
           <div className="relative">
             <button
               id="company-selector-btn"
@@ -150,8 +156,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* Quick Actions */}
           <div className="flex items-center gap-2">
+            <button
+              id="tally-connect-nav-btn"
+              onClick={openTallyConnect}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-sm transition cursor-pointer"
+              title="Connect to TallyPrime"
+            >
+              <span>🔗</span>
+              <span className="hidden sm:inline">Tally Connect</span>
+              <span className="sm:hidden">Tally</span>
+            </button>
+
             <button
               id="live-deploy-modal-btn"
               onClick={onOpenDeploymentGuide}
@@ -191,7 +207,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Navigation Tabs */}
         <div className="flex items-center space-x-1 overflow-x-auto border-t border-slate-100 py-1.5 scrollbar-none">
           {navItems.map((item) => {
             const Icon = item.icon;
