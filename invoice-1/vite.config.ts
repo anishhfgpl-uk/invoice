@@ -1,30 +1,22 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig, Plugin} from 'vite';
-
-const tallyParserFormatPlugin: Plugin = {
-  name: 'tally-parser-format-inr',
-  enforce: 'post',
-  transform(code, id) {
-    if (id.endsWith('/src/utils/tallyParser.ts') && !code.includes('export function formatINR')) {
-      return `${code}\n\nexport function formatINR(value: number): string {\n  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(Number(value) || 0);\n}\n`;
-    }
-    return null;
-  },
-};
+import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
     base: '/invoice/',
-    plugins: [react(), tailwindcss(), tallyParserFormatPlugin],
+    plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
     },
     server: {
+      // HMR is disabled in AI Studio via DISABLE_HMR env var.
+      // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
+      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
   };
