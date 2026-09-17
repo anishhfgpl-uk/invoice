@@ -212,3 +212,25 @@ export const SAMPLE_TALLY_XML = `<?xml version="1.0"?><ENVELOPE><BODY><DATA><TAL
 export function formatINR(value: number): string {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(Number(value) || 0);
 }
+
+const INR_ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+const INR_TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+const twoDigitWords = (n: number): string => n < 20 ? INR_ONES[n] : `${INR_TENS[Math.floor(n / 10)]}${n % 10 ? ` ${INR_ONES[n % 10]}` : ''}`;
+const numberToWords = (n: number): string => {
+  n = Math.floor(Math.abs(n));
+  if (n < 100) return twoDigitWords(n);
+  if (n < 1000) return `${INR_ONES[Math.floor(n / 100)]} Hundred${n % 100 ? ` ${twoDigitWords(n % 100)}` : ''}`;
+  if (n < 100000) return `${numberToWords(Math.floor(n / 1000))} Thousand${n % 1000 ? ` ${numberToWords(n % 1000)}` : ''}`;
+  if (n < 10000000) return `${numberToWords(Math.floor(n / 100000))} Lakh${n % 100000 ? ` ${numberToWords(n % 100000)}` : ''}`;
+  return `${numberToWords(Math.floor(n / 10000000))} Crore${n % 10000000 ? ` ${numberToWords(n % 10000000)}` : ''}`;
+};
+
+export function numberToWordsINR(value: number): string {
+  const amount = Math.abs(Number(value) || 0);
+  const rupees = Math.floor(amount);
+  const paise = Math.round((amount - rupees) * 100);
+  if (!rupees && !paise) return 'Zero Rupees Only';
+  const rupeeText = rupees ? `${numberToWords(rupees)} Rupees` : '';
+  const paiseText = paise ? `${numberToWords(paise)} Paise` : '';
+  return [rupeeText, paiseText].filter(Boolean).join(' and ') + ' Only';
+}
