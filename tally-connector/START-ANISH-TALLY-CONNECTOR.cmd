@@ -8,7 +8,11 @@ if not exist "%NODE_EXE%" (
   echo Downloading Node.js runtime for Anish Tally Connector...
   curl.exe -L --fail --retry 3 "https://nodejs.org/dist/v%NODE_VER%/node-v%NODE_VER%-win-x64.zip" -o "%TEMP%\anish-node.zip"
   if errorlevel 1 goto fail
-  tar.exe -xf "%TEMP%\anish-node.zip" -C "%~dp0"
+  pushd "%~dp0"
+  tar.exe -xf "%TEMP%\anish-node.zip"
+  set "TAR_RC=%ERRORLEVEL%"
+  popd
+  if not "%TAR_RC%"=="0" goto fail
   del /q "%TEMP%\anish-node.zip" >nul 2>&1
 )
 if not exist "%NODE_EXE%" goto fail
