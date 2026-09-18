@@ -41,6 +41,57 @@ export const TallySyncHub: React.FC = () => {
 
   const [copiedXml, setCopiedXml] = useState(false);
   const [activeExportFormat, setActiveExportFormat] = useState<'xml' | 'json'>('xml');
+  const [liveReady, setLiveReady] = useState(false);
+  const [liveStatus, setLiveStatus] = useState('');
+  const [officeCode, setOfficeCode] = useState(() => localStorage.getItem('tallysync_office_code') || '');
+  const [connectorUrl, setConnectorUrl] = useState(() => localStorage.getItem('tallysync_connector_url') || 'http://127.0.0.1:9101');
+  const [liveFrom, setLiveFrom] = useState('01-Apr-2026');
+  const [liveTo, setLiveTo] = useState('30-Sep-2026');
+
+  React.useEffect(() => {
+    const src = 'https://raw.githubusercontent.com/anishhfgpl-uk/invoice/main/tally-connector/live-tally.js?v=20260918';
+    if ((window as any).__tsPanel) { setLiveReady(true); return; }
+    const s = document.createElement('script'); s.src = src; s.async = false;
+    s.onload = () => setTimeout(() => setLiveReady(!!(window as any).__tsPanel), 250);
+    s.onerror = () => setLiveStatus('❌ Live Tally connector script load failed.');
+    document.head.appendChild(s);
+    return () => { s.remove(); };
+  }, []);
+
+  const saveConnectorSettings = () => {
+    localStorage.setItem('tallysync_office_code', officeCode.trim().toUpperCase());
+    localStorage.setItem('tallysync_connector_url', connectorUrl.trim() || 'http://127.0.0.1:9101');
+    localStorage.setItem('tallysync_connector_saved_at', new Date().toISOString());
+    setLiveStatus('✅ Connection settings saved.');
+  };
+
+  const runLive = async (kind: string) => {
+    const panel = (window as any).__tsPanel;
+    if (!panel) return setLiveStatus('❌ Live connector is still loading. Refresh once if needed.');
+    saveConnectorSettings();
+    localStorage.setItem('tallysync_office_code', officeCode.trim().toUpperCase());
+    localStorage.setItem('tallysync_connector_url', connectorUrl.trim() || 'http://127.0.0.1:9101');
+    try {
+      setLiveStatus('⏳ Connecting to TallyPrime…');
+      if (kind === 'test' || kind === 'company') {
+        const x = await panel.loadCompanies();
+        setLiveStatus('✅ Tally Connected\\nCompany: ' + (x?.Name || 'Loaded'));
+      } else if (kind === 'debtors') {
+        const x = await panel.importDebtors(); setLiveStatus('✅ Debtors imported\\nRecords: ' + x.length);
+      } else if (kind === 'items') {
+        const x = await panel.importItems(); setLiveStatus('✅ Stock items imported\\nRecords: ' + x.length);
+      } else if (kind === 'invoices') {
+        const x = await panel.importInvoices(liveFrom, liveTo, (i:number,n:number,f:string,t:string)=>setLiveStatus('⏳ Sales invoice import\\nWeek ' + i + '/' + n + '\\n' + f + ' → ' + t));
+        setLiveStatus('✅ Sales invoices imported\\nRecords: ' + x.length);
+      } else {
+        const x = await panel.importAll(liveFrom, liveTo, (i:number,n:number,f:string,t:string)=>setLiveStatus('⏳ Complete Tally import\\nInvoice week ' + i + '/' + n + '\\n' + f + ' → ' + t));
+        setLiveStatus('✅ Complete Tally import finished\\nDebtors: ' + x.debtors.length + '\\nItems: ' + x.items.length + '\\nSales invoices: ' + x.invoices.length);
+      }
+      window.dispatchEvent(new Event('tallysync:refresh'));
+    } catch (e:any) { setLiveStatus('❌ ' + (e?.message || e)); }
+  };
+
+
 
   // Handle file upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -195,6 +246,35 @@ export const TallySyncHub: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* LIVE TALLY CONNECTOR */}
+      <div className="bg-white rounded-2xl border-2 border-blue-200 p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div>
+            <div className="flex items-center gap-2 text-blue-700"><span className="text-lg">🔗</span><h2 className="text-sm font-bold text-slate-900">Live TallyPrime Import</h2></div>
+            <p className="text-xs text-slate-500 mt-1">Real-time import through the Office Tally Connector. TallyPrime must be running on the office PC.</p>
+          </div>
+          <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${liveReady ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{liveReady ? 'Connector UI Ready' : 'Loading connector…'}</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div><label className="block text-[11px] font-bold text-slate-600 mb-1">Remote Office Code</label><input value={officeCode} onChange={e=>setOfficeCode(e.target.value.toUpperCase())} placeholder="ANISH-80E02825" className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono" /></div>
+          <div><label className="block text-[11px] font-bold text-slate-600 mb-1">Direct Connector URL</label><input value={connectorUrl} onChange={e=>setConnectorUrl(e.target.value)} placeholder="http://127.0.0.1:9101" className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono" /></div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={saveConnectorSettings} className="px-3 py-2 rounded-lg bg-slate-800 text-white text-xs font-bold">Save Connection</button>
+          <button onClick={()=>runLive('test')} disabled={!liveReady} className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-bold">✓ Test Tally</button>
+          <button onClick={()=>runLive('company')} disabled={!liveReady} className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold">Import Companies</button>
+          <button onClick={()=>runLive('debtors')} disabled={!liveReady} className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-xs font-bold">Import Debtors / Ledgers</button>
+          <button onClick={()=>runLive('items')} disabled={!liveReady} className="px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-xs font-bold">Import Stock Items</button>
+          <button onClick={()=>runLive('invoices')} disabled={!liveReady} className="px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white text-xs font-bold">Import Sales Invoices</button>
+          <button onClick={()=>runLive('all')} disabled={!liveReady} className="px-3 py-2 rounded-lg bg-slate-900 hover:bg-black disabled:opacity-40 text-white text-xs font-bold">Import All Tally Data</button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <input value={liveFrom} onChange={e=>setLiveFrom(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono" placeholder="From: 01-Apr-2026" />
+          <input value={liveTo} onChange={e=>setLiveTo(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono" placeholder="To: 30-Sep-2026" />
+        </div>
+        {liveStatus && <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs font-semibold whitespace-pre-wrap">{liveStatus}</div>}
+      </div>
 
       {/* Two Column Layout: Import (Left) and Export (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
