@@ -1,4 +1,4 @@
-import { CompanyProfile, Debtor, StockItem, Invoice, InvoiceItem } from '../types';
+import { CompanyProfile, Debtor, StockItem, Invoice } from '../types';
 
 export interface ParseResult {
   companies: CompanyProfile[];
@@ -6,231 +6,628 @@ export interface ParseResult {
   stockItems: StockItem[];
   invoices: Invoice[];
   errors: string[];
-  counts: { companies: number; debtors: number; stockItems: number; invoices: number };
+  counts: {
+    companies: number;
+    debtors: number;
+    stockItems: number;
+    invoices: number;
+  };
 }
-
-const clean = (v: string | null | undefined) => (v || '').trim();
-const num = (v: string | null | undefined) => {
-  const m = clean(v).replace(/,/g, '').match(/-?\d+(?:\.\d+)?/);
-  return m ? Math.abs(Number(m[0])) : 0;
-};
-const firstText = (node: Element, names: string[]) => {
-  for (const name of names) {
-    const el = node.querySelector(name);
-    if (el?.textContent?.trim()) return el.textContent.trim();
-  }
-  return '';
-};
-const dateFromTally = (v: string) => {
-  const s = clean(v).replace(/[^0-9]/g, '');
-  if (s.length === 8) return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
-  return s ? s : new Date().toISOString().slice(0, 10);
-};
-const safeId = (prefix: string, value: string) => `${prefix}_${value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 90)}`;
-const unitFromQty = (v: string) => {
-  const m = clean(v).match(/[A-Za-z]+(?:[-/][A-Za-z]+)?/);
-  return (m?.[0] || 'NOS').toUpperCase().slice(0, 5);
-};
 
 export function parseTallyXML(xmlString: string, currentCompanyId: string): ParseResult {
   const result: ParseResult = {
-    companies: [], debtors: [], stockItems: [], invoices: [], errors: [],
+    companies: [],
+    debtors: [],
+    stockItems: [],
+    invoices: [],
+    errors: [],
     counts: { companies: 0, debtors: 0, stockItems: 0, invoices: 0 },
   };
+
   try {
-    const xmlDoc = new DOMParser().parseFromString(xmlString, 'text/xml');
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
+
     const parserError = xmlDoc.querySelector('parsererror');
     if (parserError) {
       result.errors.push(`XML Parsing Error: ${parserError.textContent?.slice(0, 150)}`);
       return result;
     }
 
-    xmlDoc.querySelectorAll('COMPANY, REMOTECMPINFO').forEach((node) => {
-      const name = node.getAttribute('NAME') || firstText(node, ['NAME', 'BASICCOMPANYFORMALNAME', 'CMPNAME']);
+    // 1. Parse Company Profiles
+    const companyNodes = xmlDoc.querySelectorAll('COMPANY, REMOTECMPINFO');
+    companyNodes.forEach((node) => {
+      const name = node.getAttribute('NAME') || node.querySelector('NAME, BASICCOMPANYFORMALNAME, CMPNAME')?.textContent?.trim() || '';
       if (!name) return;
-      const gstin = firstText(node, ['GSTREGISTRATIONNUMBER', 'PARTYGSTIN', 'GSTIN']);
-      const state = firstText(node, ['STATENAME', 'LEDSTATENAME']) || 'Delhi';
-      const address = Array.from(node.querySelectorAll('ADDRESS.LIST ADDRESS, ADDRESS')).map((a) => clean(a.textContent)).filter(Boolean).join(', ');
-      result.companies.push({
-        id: safeId('comp_imp', name), name, formalName: name,
-        gstin: gstin || '07AAAAA0000A1Z5', pan: gstin ? gstin.substring(2, 12) : 'AAAAA0000A',
-        state, stateCode: gstin ? gstin.substring(0, 2) : '07', address: address || 'Commercial Complex',
-        city: 'New Delhi', pincode: '110001', phone: firstText(node, ['TELEPHONENUMBER', 'CMPPHONE']),
-        email: firstText(node, ['EMAIL', 'CMPEMAIL']), financialYear: '2024-2025',
-        booksBeginningFrom: firstText(node, ['STARTINGFROM', 'BOOKSBEGINNINGFROM']) || '2024-04-01',
-        bankName: 'HDFC Bank Ltd', accountNumber: '', ifscCode: '', branch: '',
-      });
-    });
-    result.counts.companies = result.companies.length;
-    const targetCompId = result.companies[0]?.id || currentCompanyId;
 
-    xmlDoc.querySelectorAll('LEDGER').forEach((node) => {
-      const name = node.getAttribute('NAME') || firstText(node, ['NAME']);
-      const parent = firstText(node, ['PARENT']);
-      if (!name || (parent && !/debtor|customer/i.test(parent))) return;
-      const gstin = firstText(node, ['PARTYGSTIN', 'GSTREGISTRATIONNUMBER']);
-      const rawBalance = firstText(node, ['OPENINGBALANCE']);
-      const address = Array.from(node.querySelectorAll('ADDRESS.LIST ADDRESS, ADDRESS')).map((a) => clean(a.textContent)).filter(Boolean).join(', ');
+      const gstin = node.querySelector('GSTREGISTRATIONNUMBER, PARTYGSTIN, GSTIN')?.textContent?.trim() || '';
+      const state = node.querySelector('STATENAME, LEDSTATENAME, STATENAME')?.textContent?.trim() || 'Delhi';
+      const address = Array.from(node.querySelectorAll('ADDRESS.LIST ADDRESS, ADDRESS'))
+        .map((a) => a.textContent?.trim())
+        .filter(Boolean)
+        .join(', ');
+      const pan = node.querySelector('INCOMETAXNUMBER, PANNUMBER, PAN')?.textContent?.trim() || (gstin ? gstin.substring(2, 12) : '');
+      const email = node.querySelector('EMAIL, CMPEMAIL')?.textContent?.trim() || '';
+      const phone = node.querySelector('TELEPHONENUMBER, CMPPHONE')?.textContent?.trim() || '';
+      const booksFrom = node.querySelector('STARTINGFROM, BOOKSBEGINNINGFROM')?.textContent?.trim() || '2024-04-01';
+
+      const stateCodeMap: Record<string, string> = {
+        delhi: '07',
+        maharashtra: '27',
+        rajasthan: '08',
+        'uttar pradesh': '09',
+        gujarat: '24',
+        karnataka: '29',
+        haryana: '06',
+        punjab: '03',
+        'west bengal': '19',
+        tamilnadu: '33',
+        'tamil nadu': '33',
+      };
+      const stateCode = gstin ? gstin.substring(0, 2) : stateCodeMap[state.toLowerCase()] || '07';
+
+      const newCompany: CompanyProfile = {
+        id: `comp_imp_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+        name,
+        formalName: name,
+        gstin: gstin || '07AAAAA0000A1Z5',
+        pan: pan || 'AAAAA0000A',
+        state: state || 'Delhi',
+        stateCode,
+        address: address || 'Commercial Complex',
+        city: 'New Delhi',
+        pincode: '110001',
+        phone: phone || '+91 98000 00000',
+        email: email || 'accounts@company.com',
+        financialYear: '2024-2025',
+        booksBeginningFrom: booksFrom,
+        bankName: 'HDFC Bank Ltd',
+        accountNumber: '50200012345678',
+        ifscCode: 'HDFC0001234',
+        branch: 'Main City Branch',
+      };
+
+      result.companies.push(newCompany);
+      result.counts.companies++;
+    });
+
+    // Determine target company id for debtors/items
+    const targetCompId = result.companies.length > 0 ? result.companies[0].id : currentCompanyId;
+
+    // 2. Parse Debtors / Ledgers
+    const ledgerNodes = xmlDoc.querySelectorAll('LEDGER');
+    ledgerNodes.forEach((node) => {
+      const name = node.getAttribute('NAME') || node.querySelector('NAME')?.textContent?.trim() || '';
+      const parent = node.querySelector('PARENT')?.textContent?.trim() || '';
+
+      // Check if this ledger belongs to Sundry Debtors or customers
+      const isDebtor =
+        parent.toLowerCase().includes('debtor') ||
+        parent.toLowerCase().includes('customer') ||
+        node.querySelector('ISBILLWISEON')?.textContent === 'Yes' ||
+        !parent; // if loose master, include
+
+      if (!name || (parent && !parent.toLowerCase().includes('debtor') && !parent.toLowerCase().includes('customer'))) {
+        return;
+      }
+
+      const gstin = node.querySelector('PARTYGSTIN, GSTREGISTRATIONNUMBER')?.textContent?.trim() || '';
+      const pan = node.querySelector('INCOMETAXNUMBER, PANNUMBER, PAN')?.textContent?.trim() || (gstin ? gstin.substring(2, 12) : '');
+      const state = node.querySelector('LEDSTATENAME, STATENAME')?.textContent?.trim() || 'Delhi';
+      const rawBalance = node.querySelector('OPENINGBALANCE')?.textContent?.trim() || '0';
+      const cleanBalance = Math.abs(parseFloat(rawBalance.replace(/[^0-9.-]+/g, '')) || 0);
+      const isCredit = rawBalance.toLowerCase().includes('cr') || rawBalance.startsWith('-');
+      const balanceType: 'Dr' | 'Cr' = isCredit ? 'Cr' : 'Dr';
+
+      const creditPeriodRaw = node.querySelector('BILLCREDITPERIOD')?.textContent?.trim() || '30';
+      const creditPeriodDays = parseInt(creditPeriodRaw.replace(/\D/g, ''), 10) || 30;
+
+      const address = Array.from(node.querySelectorAll('ADDRESS.LIST ADDRESS, ADDRESS'))
+        .map((a) => a.textContent?.trim())
+        .filter(Boolean)
+        .join(', ');
+
+      const phone = node.querySelector('LEDGERMOBILE, LEDGERPHONE, TELEPHONENUMBER')?.textContent?.trim() || '';
+      const email = node.querySelector('EMAIL')?.textContent?.trim() || '';
+      const contactPerson = node.querySelector('LEDGERCONTACT')?.textContent?.trim() || '';
+
+      const stateCode = gstin ? gstin.substring(0, 2) : '07';
+
       result.debtors.push({
-        id: safeId(`deb_${targetCompId}`, name), companyId: targetCompId, name,
-        alias: firstText(node, ['MAILINGNAME']) || name, parentGroup: 'Sundry Debtors',
-        gstin: gstin || undefined, pan: gstin ? gstin.substring(2, 12) : undefined,
-        state: firstText(node, ['LEDSTATENAME', 'STATENAME']) || 'Delhi', stateCode: gstin ? gstin.substring(0, 2) : '07',
-        address, city: '', pincode: '', contactPerson: firstText(node, ['LEDGERCONTACT']) || undefined,
-        phone: firstText(node, ['LEDGERMOBILE', 'LEDGERPHONE', 'TELEPHONENUMBER']),
-        email: firstText(node, ['EMAIL']), openingBalance: num(rawBalance),
-        openingBalanceType: /cr/i.test(rawBalance) || rawBalance.startsWith('-') ? 'Cr' : 'Dr',
-        creditPeriodDays: Number(firstText(node, ['BILLCREDITPERIOD']).replace(/\D/g, '')) || 30,
+        id: `deb_imp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        companyId: targetCompId,
+        name,
+        alias: node.querySelector('MAILINGNAME')?.textContent?.trim() || name,
+        parentGroup: 'Sundry Debtors',
+        gstin: gstin || undefined,
+        pan: pan || undefined,
+        state: state || 'Delhi',
+        stateCode,
+        address: address || 'Trade Complex',
+        city: 'Local Area',
+        pincode: '110001',
+        contactPerson: contactPerson || undefined,
+        phone: phone || '+91 98000 11111',
+        email: email || 'contact@client.com',
+        openingBalance: cleanBalance,
+        openingBalanceType: balanceType,
+        creditPeriodDays,
       });
+      result.counts.debtors++;
     });
-    result.counts.debtors = result.debtors.length;
 
-    xmlDoc.querySelectorAll('STOCKITEM').forEach((node) => {
-      const name = node.getAttribute('NAME') || firstText(node, ['NAME']);
+    // 3. Parse Stock Items
+    const itemNodes = xmlDoc.querySelectorAll('STOCKITEM');
+    itemNodes.forEach((node) => {
+      const name = node.getAttribute('NAME') || node.querySelector('NAME')?.textContent?.trim() || '';
       if (!name) return;
-      const opening = num(firstText(node, ['OPENINGBALANCE']));
-      const rate = num(firstText(node, ['OPENINGRATE']));
-      const hsn = firstText(node, ['HSNCODE', 'GSTHSNCODE']) || '8471';
+
+      const group = node.querySelector('PARENT')?.textContent?.trim() || 'General Inventory';
+      const uqc = node.querySelector('BASEUNITS')?.textContent?.trim() || 'NOS';
+      const hsnCode = node.querySelector('HSNCODE, GSTHSNCODE')?.textContent?.trim() || '8471';
+      const rateStr = node.querySelector('OPENINGRATE')?.textContent?.trim() || '0';
+      const unitPrice = Math.abs(parseFloat(rateStr.replace(/[^0-9.-]+/g, '')) || 1000);
+
+      const gstRateStr = node.querySelector('GSTRATE, TAXRATE, RATE')?.textContent?.trim() || '18';
+      const taxRate = parseFloat(gstRateStr.replace(/[^0-9.]/g, '')) || 18;
+
+      const qtyStr = node.querySelector('OPENINGBALANCE')?.textContent?.trim() || '0';
+      const openingStock = Math.abs(parseFloat(qtyStr.replace(/[^0-9.-]+/g, '')) || 0);
+
       result.stockItems.push({
-        id: safeId(`item_${targetCompId}`, name), companyId: targetCompId, name, alias: name,
-        group: firstText(node, ['PARENT']) || 'General Inventory', hsnCode: hsn,
-        uqc: (firstText(node, ['BASEUNITS']) || 'NOS').toUpperCase().slice(0, 5),
-        unitPrice: rate, taxRate: num(firstText(node, ['GSTRATE', 'TAXRATE'])) || 18,
-        openingStock: opening, currentStock: opening,
+        id: `item_imp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        companyId: targetCompId,
+        name,
+        alias: name,
+        group,
+        hsnCode,
+        uqc: uqc.toUpperCase().slice(0, 5) || 'NOS',
+        unitPrice: unitPrice > 0 ? unitPrice : 1500,
+        taxRate: [0, 5, 12, 18, 28].includes(taxRate) ? taxRate : 18,
+        openingStock,
+        currentStock: openingStock > 0 ? openingStock : 50,
       });
+      result.counts.stockItems++;
     });
-    result.counts.stockItems = result.stockItems.length;
 
-    // SALES VOUCHERS ONLY. Receipt/payment/credit/debit vouchers are deliberately ignored.
-    xmlDoc.querySelectorAll('VOUCHER').forEach((voucher) => {
-      const voucherType = (voucher.getAttribute('VCHTYPE') || firstText(voucher, ['VOUCHERTYPENAME', 'VOUCHER'])).trim();
-      if (!/^sales$/i.test(voucherType)) return;
-
-      const voucherNo = firstText(voucher, ['VOUCHERNUMBER', 'REFERENCE']) || voucher.getAttribute('NUMBER') || '';
-      if (!voucherNo) return;
-      const invoiceDate = dateFromTally(firstText(voucher, ['DATE', 'VOUCHERDATE']));
-      const partyName = firstText(voucher, ['PARTYLEDGERNAME', 'PARTYNAME', 'LEDGERNAME']) || 'Unknown Customer';
-      const partyGstin = firstText(voucher, ['PARTYGSTIN', 'PARTYGSTINNUMBER', 'GSTREGISTRATIONNUMBER']);
-      const debtor = result.debtors.find((d) =>
-        (partyGstin && d.gstin && d.gstin.toLowerCase() === partyGstin.toLowerCase()) || d.name.toLowerCase() === partyName.toLowerCase()
-      );
-      const debtorId = debtor?.id || safeId(`deb_${targetCompId}`, partyName);
-      const debtorState = debtor?.state || firstText(voucher, ['STATENAME', 'LEDSTATENAME']) || 'Delhi';
-      const debtorStateCode = debtor?.stateCode || (partyGstin ? partyGstin.substring(0, 2) : '07');
-      const isInterState = !!partyGstin && partyGstin.substring(0, 2) !== debtorStateCode;
-
-      const items: InvoiceItem[] = [];
-      voucher.querySelectorAll('ALLINVENTORYENTRIES.LIST').forEach((entry) => {
-        const itemName = firstText(entry, ['STOCKITEMNAME', 'ITEMNAME']);
-        if (!itemName) return;
-        const qtyRaw = firstText(entry, ['BILLEDQTY', 'ACTUALQTY']);
-        const quantity = num(qtyRaw);
-        const rate = num(firstText(entry, ['RATE']));
-        const taxableAmount = num(firstText(entry, ['AMOUNT'])) || quantity * rate;
-        const hsnCode = firstText(entry, ['GSTHSNNAME', 'HSN', 'HSNCODE']) || result.stockItems.find((i) => i.name.toLowerCase() === itemName.toLowerCase())?.hsnCode || '8471';
-        const uqc = unitFromQty(qtyRaw) || result.stockItems.find((i) => i.name.toLowerCase() === itemName.toLowerCase())?.uqc || 'NOS';
-        const gstRate = num(firstText(entry, ['GSTRATE', 'TAXRATE'])) || 0;
-        items.push({
-          itemId: safeId(`item_${targetCompId}`, itemName), itemName, hsnCode, uqc,
-          quantity, rate, discountPercent: 0, taxableAmount,
-          gstRate, cgstAmount: 0, sgstAmount: 0, igstAmount: 0,
-          totalAmount: taxableAmount,
-        });
-      });
-
-      let cgst = 0, sgst = 0, igst = 0, partyAmount = 0, roundOff = 0;
-      voucher.querySelectorAll('LEDGERENTRIES.LIST').forEach((entry) => {
-        const ledgerName = firstText(entry, ['LEDGERNAME']);
-        const amount = num(firstText(entry, ['AMOUNT']));
-        if (/cgst/i.test(ledgerName)) cgst += amount;
-        else if (/sgst|utgst/i.test(ledgerName)) sgst += amount;
-        else if (/igst/i.test(ledgerName)) igst += amount;
-        else if (/round/i.test(ledgerName)) roundOff += amount;
-        else if (firstText(entry, ['ISPARTYLEDGER']) === 'Yes' || ledgerName.toLowerCase() === partyName.toLowerCase()) partyAmount = Math.max(partyAmount, amount);
-      });
-
-      const subTotal = items.reduce((sum, i) => sum + i.taxableAmount, 0);
-      const taxTotal = cgst + sgst + igst;
-      const grandTotal = partyAmount || Math.abs(Math.round((subTotal + taxTotal + roundOff) * 100) / 100);
-      const id = safeId(`sales_${targetCompId}`, `${invoiceDate}_${voucherNo}`);
-      result.invoices.push({
-        id, companyId: targetCompId, invoiceNumber: voucherNo, invoiceDate,
-        dueDate: invoiceDate, debtorId, debtorName: partyName, debtorGstin: partyGstin || undefined,
-        debtorAddress: debtor?.address || '', debtorState, debtorStateCode,
-        placeOfSupply: debtorState, placeOfSupplyCode: debtorStateCode, isInterState,
-        items, subTotal, totalDiscount: 0, totalTaxable: subTotal,
-        cgstTotal: cgst, sgstTotal: sgst, igstTotal: igst, roundOff,
-        grandTotal, notes: 'Imported from Tally Sales voucher', status: 'Unpaid', amountPaid: 0, balanceDue: grandTotal,
-      });
-    });
-    result.counts.invoices = result.invoices.length;
     return result;
-  } catch (err) {
-    result.errors.push(`Parsing failed: ${err instanceof Error ? err.message : String(err)}`);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    result.errors.push(`Parsing failed: ${message}`);
     return result;
   }
 }
 
 export function parseTallyJSON(jsonString: string, currentCompanyId: string): ParseResult {
-  const empty: ParseResult = { companies: [], debtors: [], stockItems: [], invoices: [], errors: [], counts: { companies: 0, debtors: 0, stockItems: 0, invoices: 0 } };
+  const result: ParseResult = {
+    companies: [],
+    debtors: [],
+    stockItems: [],
+    invoices: [],
+    errors: [],
+    counts: { companies: 0, debtors: 0, stockItems: 0, invoices: 0 },
+  };
+
   try {
     const data = JSON.parse(jsonString);
-    const r = empty;
-    if (Array.isArray(data.companies)) { r.companies = data.companies; r.counts.companies = r.companies.length; }
-    else if (data.company) { r.companies = [data.company]; r.counts.companies = 1; }
-    const companyId = r.companies[0]?.id || currentCompanyId;
-    if (Array.isArray(data.debtors)) { r.debtors = data.debtors.map((d: Partial<Debtor>) => ({ ...d, id: d.id || safeId(`deb_${companyId}`, d.name || 'debtor'), companyId, name: d.name || 'Unknown Debtor', parentGroup: 'Sundry Debtors', state: d.state || 'Delhi', stateCode: d.stateCode || '07', address: d.address || '', city: d.city || '', pincode: d.pincode || '', phone: d.phone || '', email: d.email || '', openingBalance: Number(d.openingBalance) || 0, openingBalanceType: d.openingBalanceType === 'Cr' ? 'Cr' : 'Dr', creditPeriodDays: Number(d.creditPeriodDays) || 30 })); r.counts.debtors = r.debtors.length; }
-    if (Array.isArray(data.stockItems)) { r.stockItems = data.stockItems.map((i: Partial<StockItem>) => ({ ...i, id: i.id || safeId(`item_${companyId}`, i.name || 'item'), companyId, name: i.name || 'Stock Item', group: i.group || 'General', hsnCode: i.hsnCode || '8471', uqc: i.uqc || 'NOS', unitPrice: Number(i.unitPrice) || 0, taxRate: Number(i.taxRate) || 18, openingStock: Number(i.openingStock) || 0, currentStock: Number(i.currentStock) || 0 })); r.counts.stockItems = r.stockItems.length; }
-    if (Array.isArray(data.invoices)) { r.invoices = data.invoices.map((i: Partial<Invoice>) => ({ ...i, id: i.id || safeId(`inv_${companyId}`, `${i.invoiceNumber || 'invoice'}_${i.invoiceDate || ''}`), companyId } as Invoice)); r.counts.invoices = r.invoices.length; }
-    return r;
-  } catch (err) { empty.errors.push(`JSON Parse Error: ${err instanceof Error ? err.message : String(err)}`); return empty; }
+
+    if (Array.isArray(data.companies)) {
+      result.companies = data.companies;
+      result.counts.companies = data.companies.length;
+    } else if (data.company) {
+      result.companies = [data.company];
+      result.counts.companies = 1;
+    }
+
+    const targetCompId = result.companies.length > 0 ? result.companies[0].id : currentCompanyId;
+
+    if (Array.isArray(data.debtors)) {
+      result.debtors = data.debtors.map((d: Partial<Debtor>) => ({
+        ...d,
+        id: d.id || `deb_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        companyId: targetCompId,
+        name: d.name || 'Unknown Debtor',
+        parentGroup: 'Sundry Debtors',
+        state: d.state || 'Delhi',
+        stateCode: d.stateCode || (d.gstin ? d.gstin.substring(0, 2) : '07'),
+        address: d.address || '',
+        city: d.city || '',
+        pincode: d.pincode || '',
+        phone: d.phone || '',
+        email: d.email || '',
+        openingBalance: Number(d.openingBalance) || 0,
+        openingBalanceType: (d.openingBalanceType === 'Cr' ? 'Cr' : 'Dr'),
+        creditPeriodDays: Number(d.creditPeriodDays) || 30,
+      }));
+      result.counts.debtors = result.debtors.length;
+    }
+
+    if (Array.isArray(data.stockItems)) {
+      result.stockItems = data.stockItems.map((item: Partial<StockItem>) => ({
+        ...item,
+        id: item.id || `item_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        companyId: targetCompId,
+        name: item.name || 'Stock Item',
+        group: item.group || 'General',
+        hsnCode: item.hsnCode || '8471',
+        uqc: item.uqc || 'NOS',
+        unitPrice: Number(item.unitPrice) || 0,
+        taxRate: Number(item.taxRate) || 18,
+        openingStock: Number(item.openingStock) || 0,
+        currentStock: Number(item.currentStock) || 0,
+      }));
+      result.counts.stockItems = result.stockItems.length;
+    }
+
+    if (Array.isArray(data.invoices)) {
+      result.invoices = data.invoices.map((inv: Partial<Invoice>) => ({
+        ...inv,
+        id: inv.id || `inv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        companyId: targetCompId,
+      }));
+      result.counts.invoices = result.invoices.length;
+    }
+
+    return result;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    result.errors.push(`JSON Parse Error: ${message}`);
+    return result;
+  }
 }
 
 export function parseCSV(csvText: string, type: 'debtors' | 'items', companyId: string): ParseResult {
-  const r: ParseResult = { companies: [], debtors: [], stockItems: [], invoices: [], errors: [], counts: { companies: 0, debtors: 0, stockItems: 0, invoices: 0 } };
-  const rows = csvText.split(/\r?\n/).filter(Boolean).map((line) => line.split(',').map((v) => v.trim().replace(/^"|"$/g, '')));
-  if (rows.length < 2) { r.errors.push('CSV contains no data rows.'); return r; }
-  const h = rows[0].map((v) => v.toLowerCase().replace(/[^a-z0-9]/g, ''));
-  rows.slice(1).forEach((row, idx) => {
-    const get = (...names: string[]) => { const i = h.findIndex((x) => names.some((n) => x.includes(n))); return i >= 0 ? row[i] || '' : ''; };
-    const name = get('name', 'ledger', 'party') || row[0]; if (!name) return;
-    if (type === 'debtors') r.debtors.push({ id: `deb_csv_${companyId}_${idx}`, companyId, name, alias: name, parentGroup: 'Sundry Debtors', gstin: get('gst'), pan: '', state: get('state') || 'Delhi', stateCode: get('statecode') || '07', address: get('address'), city: '', pincode: '', phone: get('phone', 'mobile'), email: get('email'), openingBalance: num(get('balance', 'opening')), openingBalanceType: 'Dr', creditPeriodDays: Number(get('credit', 'days').replace(/\D/g, '')) || 30 });
-    else r.stockItems.push({ id: `item_csv_${companyId}_${idx}`, companyId, name, alias: name, group: get('group') || 'General', hsnCode: get('hsn') || '8471', uqc: (get('unit', 'uqc') || 'NOS').toUpperCase(), unitPrice: num(get('rate', 'price')), taxRate: num(get('tax', 'gst')) || 18, openingStock: num(get('opening', 'stock')), currentStock: num(get('closing', 'current')) });
+  const result: ParseResult = {
+    companies: [],
+    debtors: [],
+    stockItems: [],
+    invoices: [],
+    errors: [],
+    counts: { companies: 0, debtors: 0, stockItems: 0, invoices: 0 },
+  };
+
+  const lines = csvText
+    .split(/\r\n|\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+  if (lines.length < 2) {
+    result.errors.push('CSV contains no data rows.');
+    return result;
+  }
+
+  const headers = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
+
+  for (let i = 1; i < lines.length; i++) {
+    // Basic CSV splitting handling quoted values
+    const row: string[] = [];
+    let insideQuote = false;
+    let entry = '';
+    for (const ch of lines[i]) {
+      if (ch === '"') {
+        insideQuote = !insideQuote;
+      } else if (ch === ',' && !insideQuote) {
+        row.push(entry.trim());
+        entry = '';
+      } else {
+        entry += ch;
+      }
+    }
+    row.push(entry.trim());
+
+    if (type === 'debtors') {
+      const nameIdx = headers.findIndex((h) => h.includes('name') || h.includes('ledger') || h.includes('party'));
+      const gstinIdx = headers.findIndex((h) => h.includes('gst') || h.includes('gstin'));
+      const balanceIdx = headers.findIndex((h) => h.includes('bal') || h.includes('opening'));
+      const phoneIdx = headers.findIndex((h) => h.includes('phone') || h.includes('mobile'));
+      const stateIdx = headers.findIndex((h) => h.includes('state'));
+      const daysIdx = headers.findIndex((h) => h.includes('credit') || h.includes('days'));
+      const addrIdx = headers.findIndex((h) => h.includes('address') || h.includes('addr'));
+
+      const name = row[nameIdx !== -1 ? nameIdx : 0];
+      if (!name) continue;
+
+      const gstin = gstinIdx !== -1 ? row[gstinIdx] : '';
+      const state = stateIdx !== -1 ? row[stateIdx] : 'Delhi';
+      const balance = balanceIdx !== -1 ? parseFloat(row[balanceIdx]) || 0 : 0;
+      const phone = phoneIdx !== -1 ? row[phoneIdx] : '';
+      const days = daysIdx !== -1 ? parseInt(row[daysIdx], 10) || 30 : 30;
+      const address = addrIdx !== -1 ? row[addrIdx] : '';
+
+      result.debtors.push({
+        id: `deb_csv_${Date.now()}_${i}`,
+        companyId,
+        name,
+        alias: name,
+        parentGroup: 'Sundry Debtors',
+        gstin: gstin || undefined,
+        state: state || 'Delhi',
+        stateCode: gstin ? gstin.substring(0, 2) : '07',
+        address,
+        city: 'City',
+        pincode: '110001',
+        phone: phone || '+91 98000 00000',
+        email: 'accounts@party.com',
+        openingBalance: balance,
+        openingBalanceType: 'Dr',
+        creditPeriodDays: days,
+      });
+      result.counts.debtors++;
+    } else if (type === 'items') {
+      const nameIdx = headers.findIndex((h) => h.includes('name') || h.includes('item') || h.includes('stock'));
+      const hsnIdx = headers.findIndex((h) => h.includes('hsn') || h.includes('code'));
+      const rateIdx = headers.findIndex((h) => h.includes('rate') || h.includes('price'));
+      const taxIdx = headers.findIndex((h) => h.includes('tax') || h.includes('gst'));
+      const uqcIdx = headers.findIndex((h) => h.includes('unit') || h.includes('uqc'));
+      const stockIdx = headers.findIndex((h) => h.includes('stock') || h.includes('qty'));
+
+      const name = row[nameIdx !== -1 ? nameIdx : 0];
+      if (!name) continue;
+
+      result.stockItems.push({
+        id: `item_csv_${Date.now()}_${i}`,
+        companyId,
+        name,
+        alias: name,
+        group: 'General',
+        hsnCode: hsnIdx !== -1 ? row[hsnIdx] : '8471',
+        uqc: uqcIdx !== -1 ? row[uqcIdx].toUpperCase() : 'NOS',
+        unitPrice: rateIdx !== -1 ? parseFloat(row[rateIdx]) || 1000 : 1000,
+        taxRate: taxIdx !== -1 ? parseFloat(row[taxIdx]) || 18 : 18,
+        openingStock: stockIdx !== -1 ? parseFloat(row[stockIdx]) || 0 : 0,
+        currentStock: stockIdx !== -1 ? parseFloat(row[stockIdx]) || 20 : 20,
+      });
+      result.counts.stockItems++;
+    }
+  }
+
+  return result;
+}
+
+// Generate Tally-compliant XML export for Vouchers and Masters
+export function exportToTallyXML(company: CompanyProfile, debtors: Debtor[], stockItems: StockItem[], invoices: Invoice[]): string {
+  let xml = `<?xml version="1.0" encoding="utf-8"?>
+<ENVELOPE>
+  <HEADER>
+    <TALLYREQUEST>Import Data</TALLYREQUEST>
+  </HEADER>
+  <BODY>
+    <DATA>
+      <TALLYMESSAGE xmlns:UDF="TallyUDF">
+        <COMPANY NAME="${escapeXml(company.name)}">
+          <BASICCOMPANYFORMALNAME>${escapeXml(company.formalName || company.name)}</BASICCOMPANYFORMALNAME>
+          <GSTREGISTRATIONNUMBER>${escapeXml(company.gstin)}</GSTREGISTRATIONNUMBER>
+          <STATENAME>${escapeXml(company.state)}</STATENAME>
+          <ADDRESS.LIST>
+            <ADDRESS>${escapeXml(company.address)}</ADDRESS>
+          </ADDRESS.LIST>
+          <STARTINGFROM>${company.booksBeginningFrom.replace(/-/g, '')}</STARTINGFROM>
+        </COMPANY>
+      </TALLYMESSAGE>
+`;
+
+  // Debtors Masters
+  debtors.forEach((d) => {
+    xml += `      <TALLYMESSAGE xmlns:UDF="TallyUDF">
+        <LEDGER NAME="${escapeXml(d.name)}" ACTION="Create">
+          <NAME>${escapeXml(d.name)}</NAME>
+          <PARENT>Sundry Debtors</PARENT>
+          <OPENINGBALANCE>${d.openingBalanceType === 'Cr' ? '-' : ''}${d.openingBalance.toFixed(2)}</OPENINGBALANCE>
+          <ISBILLWISEON>Yes</ISBILLWISEON>
+          <BILLCREDITPERIOD>${d.creditPeriodDays} Days</BILLCREDITPERIOD>
+          ${d.gstin ? `<PARTYGSTIN>${escapeXml(d.gstin)}</PARTYGSTIN>` : ''}
+          <LEDSTATENAME>${escapeXml(d.state)}</LEDSTATENAME>
+          <ADDRESS.LIST>
+            <ADDRESS>${escapeXml(d.address)}</ADDRESS>
+          </ADDRESS.LIST>
+          <LEDGERMOBILE>${escapeXml(d.phone)}</LEDGERMOBILE>
+          <EMAIL>${escapeXml(d.email)}</EMAIL>
+        </LEDGER>
+      </TALLYMESSAGE>
+`;
   });
-  r.counts.debtors = r.debtors.length; r.counts.stockItems = r.stockItems.length; return r;
+
+  // Stock Items Masters
+  stockItems.forEach((item) => {
+    xml += `      <TALLYMESSAGE xmlns:UDF="TallyUDF">
+        <STOCKITEM NAME="${escapeXml(item.name)}" ACTION="Create">
+          <NAME>${escapeXml(item.name)}</NAME>
+          <PARENT>${escapeXml(item.group)}</PARENT>
+          <BASEUNITS>${escapeXml(item.uqc)}</BASEUNITS>
+          <OPENINGBALANCE>${item.openingStock} ${escapeXml(item.uqc)}</OPENINGBALANCE>
+          <OPENINGRATE>${item.unitPrice.toFixed(2)}/${escapeXml(item.uqc)}</OPENINGRATE>
+          <HSNCODE>${escapeXml(item.hsnCode)}</HSNCODE>
+          <GSTRATEDETAILS.LIST>
+            <GSTRATE>${item.taxRate}</GSTRATE>
+          </GSTRATEDETAILS.LIST>
+        </STOCKITEM>
+      </TALLYMESSAGE>
+`;
+  });
+
+  // Sales Vouchers
+  invoices.forEach((inv) => {
+    const tallyDate = inv.invoiceDate.replace(/-/g, '');
+    xml += `      <TALLYMESSAGE xmlns:UDF="TallyUDF">
+        <VOUCHER VCHTYPE="Sales" ACTION="Create">
+          <DATE>${tallyDate}</DATE>
+          <VOUCHERNUMBER>${escapeXml(inv.invoiceNumber)}</VOUCHERNUMBER>
+          <PARTYLEDGERNAME>${escapeXml(inv.debtorName)}</PARTYLEDGERNAME>
+          <BASICBUYERNAME>${escapeXml(inv.debtorName)}</BASICBUYERNAME>
+          <STATENAME>${escapeXml(inv.debtorState)}</STATENAME>
+          <PLACEOFSUPPLY>${escapeXml(inv.placeOfSupply)}</PLACEOFSUPPLY>
+          <ALLLEDGERENTRIES.LIST>
+            <LEDGERNAME>${escapeXml(inv.debtorName)}</LEDGERNAME>
+            <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+            <AMOUNT>-${inv.grandTotal.toFixed(2)}</AMOUNT>
+          </ALLLEDGERENTRIES.LIST>
+          <ALLLEDGERENTRIES.LIST>
+            <LEDGERNAME>Sales Account</LEDGERNAME>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <AMOUNT>${inv.totalTaxable.toFixed(2)}</AMOUNT>
+          </ALLLEDGERENTRIES.LIST>
+          ${
+            inv.cgstTotal > 0
+              ? `<ALLLEDGERENTRIES.LIST>
+            <LEDGERNAME>Output CGST</LEDGERNAME>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <AMOUNT>${inv.cgstTotal.toFixed(2)}</AMOUNT>
+          </ALLLEDGERENTRIES.LIST>`
+              : ''
+          }
+          ${
+            inv.sgstTotal > 0
+              ? `<ALLLEDGERENTRIES.LIST>
+            <LEDGERNAME>Output SGST</LEDGERNAME>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <AMOUNT>${inv.sgstTotal.toFixed(2)}</AMOUNT>
+          </ALLLEDGERENTRIES.LIST>`
+              : ''
+          }
+          ${
+            inv.igstTotal > 0
+              ? `<ALLLEDGERENTRIES.LIST>
+            <LEDGERNAME>Output IGST</LEDGERNAME>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <AMOUNT>${inv.igstTotal.toFixed(2)}</AMOUNT>
+          </ALLLEDGERENTRIES.LIST>`
+              : ''
+          }
+        </VOUCHER>
+      </TALLYMESSAGE>
+`;
+  });
+
+  xml += `    </DATA>
+  </BODY>
+</ENVELOPE>`;
+  return xml;
 }
 
-export function exportToTallyXML(company: CompanyProfile, debtors: Debtor[], stockItems: StockItem[], invoices: Invoice[]) {
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const ledgerXml = debtors.map((d) => `<LEDGER NAME="${esc(d.name)}" ACTION="Create"><NAME>${esc(d.name)}</NAME><PARENT>Sundry Debtors</PARENT><PARTYGSTIN>${esc(d.gstin || '')}</PARTYGSTIN></LEDGER>`).join('');
-  const itemXml = stockItems.map((i) => `<STOCKITEM NAME="${esc(i.name)}" ACTION="Create"><NAME>${esc(i.name)}</NAME><PARENT>${esc(i.group)}</PARENT><BASEUNITS>${esc(i.uqc)}</BASEUNITS><HSNCODE>${esc(i.hsnCode)}</HSNCODE></STOCKITEM>`).join('');
-  return `<?xml version="1.0"?><ENVELOPE><BODY><DATA><TALLYMESSAGE><COMPANY NAME="${esc(company.name)}"><NAME>${esc(company.name)}</NAME></COMPANY>${ledgerXml}${itemXml}</TALLYMESSAGE></DATA></BODY></ENVELOPE>`;
+export function escapeXml(unsafe: string): string {
+  if (!unsafe) return '';
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
-export const SAMPLE_TALLY_XML = `<?xml version="1.0"?><ENVELOPE><BODY><DATA><TALLYMESSAGE><COMPANY NAME="Apex Traders &amp; Supplies"><NAME>Apex Traders &amp; Supplies</NAME><STATENAME>Delhi</STATENAME></COMPANY><LEDGER NAME="Sample Customer"><NAME>Sample Customer</NAME><PARENT>Sundry Debtors</PARENT></LEDGER><VOUCHER VCHTYPE="Sales" ACTION="Create"><DATE>20240401</DATE><VOUCHERNUMBER>S-001</VOUCHERNUMBER><VOUCHERTYPENAME>Sales</VOUCHERTYPENAME><PARTYLEDGERNAME>Sample Customer</PARTYLEDGERNAME><ALLINVENTORYENTRIES.LIST><STOCKITEMNAME>Sample Glass</STOCKITEMNAME><BILLEDQTY>10 Nos</BILLEDQTY><RATE>100</RATE><AMOUNT>-1000</AMOUNT></ALLINVENTORYENTRIES.LIST><LEDGERENTRIES.LIST><LEDGERNAME>Sample Customer</LEDGERNAME><ISPARTYLEDGER>Yes</ISPARTYLEDGER><AMOUNT>1000</AMOUNT></LEDGERENTRIES.LIST></VOUCHER></TALLYMESSAGE></DATA></BODY></ENVELOPE>`;
+export function formatINR(val: number): string {
+  if (isNaN(val)) return '₹0.00';
+  const isNegative = val < 0;
+  const abs = Math.abs(val);
+  const parts = abs.toFixed(2).split('.');
+  let integerPart = parts[0];
+  const decimalPart = parts[1];
 
-export function formatINR(value: number): string {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(Number(value) || 0);
+  // Indian currency grouping: last 3 digits, then groups of 2
+  let lastThree = integerPart.substring(integerPart.length - 3);
+  const otherNumbers = integerPart.substring(0, integerPart.length - 3);
+  if (otherNumbers !== '') {
+    lastThree = ',' + lastThree;
+  }
+  const formatted = otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + lastThree;
+
+  return `${isNegative ? '-' : ''}₹${formatted}.${decimalPart}`;
 }
 
-const INR_ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
-const INR_TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-const twoDigitWords = (n: number): string => n < 20 ? INR_ONES[n] : `${INR_TENS[Math.floor(n / 10)]}${n % 10 ? ` ${INR_ONES[n % 10]}` : ''}`;
-const numberToWords = (n: number): string => {
-  n = Math.floor(Math.abs(n));
-  if (n < 100) return twoDigitWords(n);
-  if (n < 1000) return `${INR_ONES[Math.floor(n / 100)]} Hundred${n % 100 ? ` ${twoDigitWords(n % 100)}` : ''}`;
-  if (n < 100000) return `${numberToWords(Math.floor(n / 1000))} Thousand${n % 1000 ? ` ${numberToWords(n % 1000)}` : ''}`;
-  if (n < 10000000) return `${numberToWords(Math.floor(n / 100000))} Lakh${n % 100000 ? ` ${numberToWords(n % 100000)}` : ''}`;
-  return `${numberToWords(Math.floor(n / 10000000))} Crore${n % 10000000 ? ` ${numberToWords(n % 10000000)}` : ''}`;
-};
+export function numberToWordsINR(amount: number): string {
+  const a = [
+    '',
+    'One ',
+    'Two ',
+    'Three ',
+    'Four ',
+    'Five ',
+    'Six ',
+    'Seven ',
+    'Eight ',
+    'Nine ',
+    'Ten ',
+    'Eleven ',
+    'Twelve ',
+    'Thirteen ',
+    'Fourteen ',
+    'Fifteen ',
+    'Sixteen ',
+    'Seventeen ',
+    'Eighteen ',
+    'Nineteen ',
+  ];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
 
-export function numberToWordsINR(value: number): string {
-  const amount = Math.abs(Number(value) || 0);
-  const rupees = Math.floor(amount);
-  const paise = Math.round((amount - rupees) * 100);
-  if (!rupees && !paise) return 'Zero Rupees Only';
-  const rupeeText = rupees ? `${numberToWords(rupees)} Rupees` : '';
-  const paiseText = paise ? `${numberToWords(paise)} Paise` : '';
-  return [rupeeText, paiseText].filter(Boolean).join(' and ') + ' Only';
+  const num = Math.floor(Math.abs(amount));
+  if (num === 0) return 'Zero Rupees Only';
+
+  function convertTwoDigits(n: number): string {
+    if (n < 20) return a[n];
+    return b[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + a[n % 10] : ' ');
+  }
+
+  let words = '';
+  const crore = Math.floor(num / 10000000);
+  const lakh = Math.floor((num % 10000000) / 100000);
+  const thousand = Math.floor((num % 100000) / 1000);
+  const hundred = Math.floor((num % 1000) / 100);
+  const rest = num % 100;
+
+  if (crore > 0) words += convertTwoDigits(crore) + 'Crore ';
+  if (lakh > 0) words += convertTwoDigits(lakh) + 'Lakh ';
+  if (thousand > 0) words += convertTwoDigits(thousand) + 'Thousand ';
+  if (hundred > 0) words += a[hundred] + 'Hundred ';
+  if (rest > 0) words += (words !== '' ? 'and ' : '') + convertTwoDigits(rest);
+
+  return 'Rupees ' + words.trim() + ' Only';
 }
+
+export const SAMPLE_TALLY_XML = `<?xml version="1.0" encoding="utf-8"?>
+<ENVELOPE>
+  <HEADER>
+    <TALLYREQUEST>Export Data</TALLYREQUEST>
+  </HEADER>
+  <BODY>
+    <DATA>
+      <TALLYMESSAGE xmlns:UDF="TallyUDF">
+        <COMPANY NAME="Apex Traders &amp; Supplies">
+          <BASICCOMPANYFORMALNAME>Apex Traders &amp; Supplies Pvt Ltd</BASICCOMPANYFORMALNAME>
+          <GSTREGISTRATIONNUMBER>07AABCT8899K1Z0</GSTREGISTRATIONNUMBER>
+          <STATENAME>Delhi</STATENAME>
+          <ADDRESS.LIST>
+            <ADDRESS>45-B, Commercial Complex, Preet Vihar, Delhi</ADDRESS>
+          </ADDRESS.LIST>
+          <STARTINGFROM>20240401</STARTINGFROM>
+        </COMPANY>
+      </TALLYMESSAGE>
+      <TALLYMESSAGE xmlns:UDF="TallyUDF">
+        <LEDGER NAME="Kailash Infra &amp; Constructions" ACTION="Create">
+          <NAME>Kailash Infra &amp; Constructions</NAME>
+          <PARENT>Sundry Debtors</PARENT>
+          <OPENINGBALANCE>95000.00</OPENINGBALANCE>
+          <ISBILLWISEON>Yes</ISBILLWISEON>
+          <BILLCREDITPERIOD>45 Days</BILLCREDITPERIOD>
+          <PARTYGSTIN>07AAAFK8920C1ZA</PARTYGSTIN>
+          <LEDSTATENAME>Delhi</LEDSTATENAME>
+          <ADDRESS.LIST>
+            <ADDRESS>Sector 12, Dwarka, New Delhi</ADDRESS>
+          </ADDRESS.LIST>
+          <LEDGERMOBILE>9876543210</LEDGERMOBILE>
+          <EMAIL>accounts@kailashinfra.in</EMAIL>
+        </LEDGER>
+      </TALLYMESSAGE>
+      <TALLYMESSAGE xmlns:UDF="TallyUDF">
+        <STOCKITEM NAME="Industrial Laser Barcode Scanner" ACTION="Create">
+          <NAME>Industrial Laser Barcode Scanner</NAME>
+          <PARENT>Scanners &amp; POS</PARENT>
+          <BASEUNITS>NOS</BASEUNITS>
+          <OPENINGBALANCE>50 NOS</OPENINGBALANCE>
+          <OPENINGRATE>3500.00/NOS</OPENINGRATE>
+          <HSNCODE>84719000</HSNCODE>
+          <GSTRATEDETAILS.LIST>
+            <GSTRATE>18</GSTRATE>
+          </GSTRATEDETAILS.LIST>
+        </STOCKITEM>
+      </TALLYMESSAGE>
+    </DATA>
+  </BODY>
+</ENVELOPE>`;

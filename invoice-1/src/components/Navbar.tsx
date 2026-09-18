@@ -35,25 +35,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { companies, activeCompany, activeCompanyId, setActiveCompanyId, resetToDemoData } = useApp();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [tallyLoading, setTallyLoading] = useState(false);
-
-  const openTallyConnect = () => {
-    const open = () => {
-      setTallyLoading(false);
-      if ((window as any).TallySyncOpen) (window as any).TallySyncOpen();
-    };
-    if ((window as any).TallySyncOpen) return open();
-    setTallyLoading(true);
-    const existing = document.querySelector('script[data-tally-connector="live"]');
-    if (existing) return setTimeout(open, 50);
-    const script = document.createElement('script');
-    script.src = '/invoice/tally-connector.js?v=live2';
-    script.async = true;
-    script.dataset.tallyConnector = 'live';
-    script.onload = open;
-    script.onerror = () => setTallyLoading(false);
-    document.body.appendChild(script);
-  };
 
   const navItems = [
     { id: 'ledger', label: 'Ledger & Ageing', icon: FileSpreadsheet, badge: 'Key' },
@@ -181,17 +162,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden md:inline font-mono text-[11px]">anish-tech.online/invoice</span>
               <span className="inline md:hidden text-xs">Live Status</span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            </button>
-
-            <button
-              id="live-tally-connect-btn"
-              onClick={openTallyConnect}
-              disabled={tallyLoading}
-              className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white rounded-lg text-xs font-semibold shadow-xs transition cursor-pointer"
-              title="Connect TallyPrime"
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-              <span>{tallyLoading ? 'Loading Tally...' : 'Connect Tally'}</span>
             </button>
 
             {onOpenNewInvoice && (
