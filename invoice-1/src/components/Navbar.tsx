@@ -42,7 +42,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'debtors', label: 'Debtors (Customers)', icon: Users },
     { id: 'items', label: 'Stock Items', icon: Package },
     { id: 'gstr1', label: 'GSTR-1 Return', icon: FileText, badge: 'Monthly' },
-    { id: 'tally_hub', label: 'Tally Import/Export', icon: UploadCloud },
+    { id: 'sync', label: 'Tally Import/Export', icon: UploadCloud },
   ];
 
   return (
@@ -162,6 +162,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden md:inline font-mono text-[11px]">anish-tech.online/invoice</span>
               <span className="inline md:hidden text-xs">Live Status</span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            </button>
+
+            <button
+              id="tally-connect-btn"
+              onClick={() => setActiveTab('sync')}
+              className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-300/80 text-blue-900 rounded-lg text-xs font-semibold shadow-xs transition cursor-pointer"
+              title="Open Tally Connector and Import/Export"
+            >
+              <UploadCloud className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+              <span className="hidden sm:inline">Tally Connect</span>
+              <span className="sm:hidden">Tally</span>
             </button>
 
             {onOpenNewInvoice && (
