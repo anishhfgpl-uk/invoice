@@ -9,6 +9,7 @@ on:
       - 'invoice-1/package-lock.json'
       - 'invoice-1/vite.config.ts'
       - 'invoice-1/scripts/**'
+      - 'tally-connector/live-tally.js'
       - '.github/workflows/final-sales-build.yml'
   workflow_dispatch:
 
