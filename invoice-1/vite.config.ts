@@ -5,7 +5,8 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
-    base: '/',
+    // Use relative asset URLs so the app works correctly at /invoice/ on Render.
+    base: './',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
