@@ -50,12 +50,44 @@ export const TallySyncHub: React.FC = () => {
 
   React.useEffect(() => {
     const src = '/invoice/tally-connector.js?v=20260918';
-    if ((window as any).__tsPanel) { setLiveReady(true); return; }
-    const s = document.createElement('script'); s.src = src; s.async = false;
-    s.onload = () => setTimeout(() => setLiveReady(!!(window as any).__tsPanel), 250);
-    s.onerror = () => setLiveStatus('❌ Live Tally connector script load failed.');
-    document.head.appendChild(s);
-    return () => { s.remove(); };
+    let timer: number | undefined;
+    let stopped = false;
+    const checkReady = () => {
+      if (stopped) return;
+      if ((window as any).__tsPanel) {
+        setLiveReady(true);
+        if (timer) window.clearInterval(timer);
+        return;
+      }
+      setLiveReady(false);
+    };
+    if ((window as any).__tsPanel) {
+      setLiveReady(true);
+      return;
+    }
+    const existing = document.querySelector('script[data-tallysync-connector="1"]') as HTMLScriptElement | null;
+    const s = existing || document.createElement('script');
+    if (!existing) {
+      s.src = src;
+      s.async = false;
+      s.dataset.tallysyncConnector = '1';
+      s.onload = checkReady;
+      s.onerror = () => setLiveStatus('❌ Live Tally connector script load failed.');
+      document.head.appendChild(s);
+    }
+    checkReady();
+    timer = window.setInterval(checkReady, 300);
+    const timeout = window.setTimeout(() => {
+      if (!(window as any).__tsPanel && !stopped) {
+        setLiveStatus('❌ Connector script loaded, but connector UI did not initialize. Please refresh once.');
+      }
+    }, 6000);
+    return () => {
+      stopped = true;
+      if (timer) window.clearInterval(timer);
+      window.clearTimeout(timeout);
+      // Keep the shared connector script loaded; other components may use it.
+    };
   }, []);
 
   const saveConnectorSettings = () => {
