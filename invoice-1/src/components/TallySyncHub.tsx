@@ -49,7 +49,7 @@ export const TallySyncHub: React.FC = () => {
   const [liveTo, setLiveTo] = useState('30-Sep-2026');
 
   React.useEffect(() => {
-    const src = '/invoice/tally-connector.js?v=20260918-2';
+    const src = '/invoice/tally-connector.js?v=20260918-3';
     let timer: number | undefined;
     let stopped = false;
     const checkReady = () => {
@@ -65,16 +65,15 @@ export const TallySyncHub: React.FC = () => {
       setLiveReady(true);
       return;
     }
-    const existing = document.querySelector('script[data-tallysync-connector="1"]') as HTMLScriptElement | null;
-    const s = existing || document.createElement('script');
-    if (!existing) {
-      s.src = src;
-      s.async = false;
-      s.dataset.tallysyncConnector = '1';
-      s.onload = checkReady;
-      s.onerror = () => setLiveStatus('❌ Live Tally connector script load failed.');
-      document.head.appendChild(s);
-    }
+    const oldScripts = document.querySelectorAll('script[data-tallysync-connector="1"]');
+    oldScripts.forEach(node => node.remove());
+    const s = document.createElement('script');
+    s.src = src;
+    s.async = false;
+    s.dataset.tallysyncConnector = '1';
+    s.onload = checkReady;
+    s.onerror = () => setLiveStatus('❌ Live Tally connector script load failed.');
+    document.head.appendChild(s);
     checkReady();
     timer = window.setInterval(checkReady, 300);
     const timeout = window.setTimeout(() => {
