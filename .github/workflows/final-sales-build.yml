@@ -38,7 +38,7 @@ jobs:
           npm run build
           rm -rf invoice
           mkdir -p invoice
-          cp -R dist/. invoice/
+          cp -R dist/invoice/. invoice/
           cp ../tally-connector/live-tally.js invoice/tally-connector.js
 
       - name: Publish generated build
