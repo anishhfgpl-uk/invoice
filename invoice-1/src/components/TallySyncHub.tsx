@@ -49,7 +49,7 @@ export const TallySyncHub: React.FC = () => {
   const [liveTo, setLiveTo] = useState('30-Sep-2026');
 
   React.useEffect(() => {
-    const src = 'https://raw.githubusercontent.com/anishhfgpl-uk/invoice/main/tally-connector/live-tally.js?v=20260918';
+    const src = '/invoice/tally-connector.js?v=20260918';
     if ((window as any).__tsPanel) { setLiveReady(true); return; }
     const s = document.createElement('script'); s.src = src; s.async = false;
     s.onload = () => setTimeout(() => setLiveReady(!!(window as any).__tsPanel), 250);
