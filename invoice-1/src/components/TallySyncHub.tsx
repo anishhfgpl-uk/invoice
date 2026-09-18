@@ -294,12 +294,12 @@ export const TallySyncHub: React.FC = () => {
         </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={saveConnectorSettings} className="px-3 py-2 rounded-lg bg-slate-800 text-white text-xs font-bold">Save Connection</button>
-          <button onClick={()=>runLive('test')} disabled={!liveReady} className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-bold">✓ Test Tally</button>
-          <button onClick={()=>runLive('company')} disabled={!liveReady} className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold">Import Companies</button>
-          <button onClick={()=>runLive('debtors')} disabled={!liveReady} className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-xs font-bold">Import Debtors / Ledgers</button>
-          <button onClick={()=>runLive('items')} disabled={!liveReady} className="px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-xs font-bold">Import Stock Items</button>
-          <button onClick={()=>runLive('invoices')} disabled={!liveReady} className="px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white text-xs font-bold">Import Sales Invoices</button>
-          <button onClick={()=>runLive('all')} disabled={!liveReady} className="px-3 py-2 rounded-lg bg-slate-900 hover:bg-black disabled:opacity-40 text-white text-xs font-bold">Import All Tally Data</button>
+          <button onClick={()=>runLive('test')} className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-bold">✓ Test Tally</button>
+          <button onClick={()=>runLive('company')} className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold">Import Companies</button>
+          <button onClick={()=>runLive('debtors')} className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-xs font-bold">Import Debtors / Ledgers</button>
+          <button onClick={()=>runLive('items')} className="px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-xs font-bold">Import Stock Items</button>
+          <button onClick={()=>runLive('invoices')} className="px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white text-xs font-bold">Import Sales Invoices</button>
+          <button onClick={()=>runLive('all')} className="px-3 py-2 rounded-lg bg-slate-900 hover:bg-black disabled:opacity-40 text-white text-xs font-bold">Import All Tally Data</button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <input value={liveFrom} onChange={e=>setLiveFrom(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono" placeholder="From: 01-Apr-2026" />
