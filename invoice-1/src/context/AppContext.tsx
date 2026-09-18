@@ -662,6 +662,102 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [activeCompanyId]
   );
 
+  // Apply live Tally imports from the connector without requiring a page reload.
+  React.useEffect(() => {
+    const onImport = (event: Event) => {
+      const detail = (event as CustomEvent).detail || {};
+      const type = detail.type;
+      const data = Array.isArray(detail.data) ? detail.data : [];
+      const company = detail.company;
+      const companyId = String(company?.Guid || activeCompanyId || 'tally_company');
+
+      if (type === 'tallysync_debtors') {
+        const mapped = data.filter((x:any) => x.Name).map((x:any) => ({
+          id: String(x.Name),
+          companyId,
+          name: String(x.Name || ''),
+          alias: '',
+          parentGroup: String(x.Parent || 'Sundry Debtors'),
+          gstin: String(x.GSTIN || x.PartyGSTIN || ''),
+          pan: '',
+          state: String(x.StateName || ''),
+          stateCode: '',
+          address: String(x.Address || ''),
+          city: '',
+          pincode: String(x.PinCode || ''),
+          contactPerson: String(x.LedgerContact || ''),
+          phone: String(x.LedgerPhone || x.PhoneNumber || ''),
+          email: String(x.Email || ''),
+          openingBalance: Number(x.OpeningBalance || 0),
+          openingBalanceType: Number(x.OpeningBalance || 0) < 0 ? 'Cr' : 'Dr',
+          creditPeriodDays: 30,
+          creditLimit: 0,
+          currentBalance: Number(x.ClosingBalance || 0),
+        }));
+        setAllDebtors(prev => {
+          const m = new Map(prev.filter(x => x.companyId !== companyId).map(x => [String(x.id), x]));
+          mapped.forEach(x => m.set(String(x.id), x));
+          return [...m.values()];
+        });
+      }
+
+      if (type === 'tallysync_items') {
+        const mapped = data.filter((x:any) => x.Name).map((x:any) => ({
+          id: String(x.Name),
+          companyId,
+          name: String(x.Name || ''),
+          alias: '',
+          group: String(x.Parent || ''),
+          hsnCode: String(x.HSNCode || ''),
+          uqc: String(x.BaseUnits || ''),
+          unitPrice: Number(x.Rate || 0),
+          taxRate: Number(String(x.TaxRate || '').replace(/[^0-9.]/g, '')) || 0,
+          openingStock: Number(x.OpeningBalance || 0),
+          currentStock: Number(x.ClosingBalance || 0),
+          description: String(x.HSNName || ''),
+        }));
+        setAllStockItems(prev => {
+          const m = new Map(prev.filter(x => x.companyId !== companyId).map(x => [String(x.id), x]));
+          mapped.forEach(x => m.set(String(x.id), x));
+          return [...m.values()];
+        });
+      }
+
+      if (type === 'tallysync_invoices') {
+        try {
+          const raw = JSON.parse(localStorage.getItem(STORAGE_KEYS.INVOICES) || '[]');
+          setAllInvoices(raw);
+        } catch {}
+      }
+
+      if (type === 'tallysync_companies') {
+        try {
+          const rows = JSON.parse(localStorage.getItem('tallysync_companies') || '[]');
+          if (Array.isArray(rows) && rows.length) {
+            const mapped = rows.map((x:any) => ({
+              id: String(x.Guid || x.Name),
+              name: String(x.Name || ''),
+              formalName: String(x.Name || ''),
+              gstin: String(x.GSTIN || ''),
+              state: String(x.StateName || ''),
+              stateCode: '',
+              address: '',
+              city: '',
+              pincode: String(x.PinCode || ''),
+              phone: '',
+              email: '',
+            }));
+            setCompanies(mapped);
+            const chosen = JSON.parse(localStorage.getItem('tallysync_selected_company') || 'null');
+            if (chosen?.Guid || chosen?.Name) setActiveCompanyIdState(String(chosen.Guid || chosen.Name));
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener('tallysync:import', onImport as EventListener);
+    return () => window.removeEventListener('tallysync:import', onImport as EventListener);
+  }, [activeCompanyId]);
+
   const resetToDemoData = useCallback(() => {
     localStorage.removeItem(STORAGE_KEYS.COMPANIES);
     localStorage.removeItem(STORAGE_KEYS.ACTIVE_COMP);
