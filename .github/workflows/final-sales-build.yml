@@ -1,5 +1,4 @@
 name: Final Sales Import Build
-# Force rebuild after invoice asset-path deployment fix
 on:
   push:
     branches: [main]
@@ -8,33 +7,47 @@ on:
       - 'invoice-1/package.json'
       - 'invoice-1/package-lock.json'
       - 'invoice-1/vite.config.ts'
+      - 'invoice-1/scripts/**'
       - '.github/workflows/final-sales-build.yml'
   workflow_dispatch:
+
 permissions:
   contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: invoice-1/package-lock.json
-      - name: Build and publish static invoice app
+
+      - name: Build invoice app
         working-directory: invoice-1
         run: |
           set -e
           npm ci
           npm run build
           rm -rf invoice
-          cp -R dist invoice
-          cd ..
-          cp tally-connector/live-tally.js invoice-1/invoice/tally-connector.js
+          mkdir -p invoice
+          cp -R dist/. invoice/
+          cp ../tally-connector/live-tally.js invoice/tally-connector.js
+
+      - name: Publish generated build
+        run: |
+          set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add invoice-1/invoice
-          if git diff --cached --quiet; then echo 'No generated build changes.'; exit 0; fi
+          if git diff --cached --quiet; then
+            echo "No generated build changes."
+            exit 0
+          fi
           git commit -m "Publish working Sales Import build"
           git push origin HEAD:main
