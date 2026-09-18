@@ -7,6 +7,9 @@ const saved=()=>localStorage.getItem(K.url)||'http://127.0.0.1:9101', code=()=>l
 const selected=()=>{try{return JSON.parse(localStorage.getItem(K.company)||'null')}catch{return null}};
 const num=v=>{const n=Number(String(v??'').replace(/,/g,'').replace(/[A-Za-z]/g,'').trim());return Number.isFinite(n)?Math.abs(n):0};
 const safeId=(p,v)=>`${p}_tally_${String(v||'x').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,70)}`;
+// Expose the API immediately after script evaluation. React can detect readiness
+// even if the floating connector panel is not rendered.
+window.__tsPanel={loadCompanies,importDebtors,importItems,importInvoices,importAll};
 async function request(u,xml,timeout=60000){
   const r=await fetch(u,{method:'POST',headers:{'Content-Type':'text/xml;charset=utf-8'},body:xml,signal:AbortSignal.timeout(timeout)});
   const t=await r.text(); if(!r.ok)throw Error(t.slice(0,400)||`HTTP ${r.status}`); return t;
