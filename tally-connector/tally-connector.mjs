@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 const TALLY_URL=process.env.TALLY_URL||'http://127.0.0.1:9000';
 const PORT=Number(process.env.CONNECTOR_PORT||9101);
 const HOST=process.env.CONNECTOR_HOST||'0.0.0.0';
-const RELAY_URL=(process.env.RELAY_URL||'https://tally-relay-anil-sharma.onrender.com').replace(/\/$/,'');
+const RELAY_URL=(process.env.RELAY_URL||'https://tally-relay-anish.onrender.com').replace(/\/$/,'');
 const CODE_FILE=process.env.OFFICE_CODE_FILE||'.office-code';
 function makeCode(){return `ANISH-${crypto.randomBytes(4).toString('hex').toUpperCase()}`}
 function loadCode(){const env=(process.env.OFFICE_CODE||'').trim().toUpperCase();if(env)return env;try{const x=fs.readFileSync(CODE_FILE,'utf8').trim().toUpperCase();if(/^[A-Z0-9_-]{6,40}$/.test(x))return x}catch{}const c=makeCode();try{fs.writeFileSync(CODE_FILE,c+'\n','utf8')}catch{}return c}
