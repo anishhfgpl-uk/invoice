@@ -1,4 +1,5 @@
 name: Final Sales Import Build
+# Rebuild trigger: 2026-09-18 connector readiness fix
 on:
   push:
     branches: [main]
