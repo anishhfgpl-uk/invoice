@@ -49,7 +49,7 @@ export const TallySyncHub: React.FC = () => {
   const [liveTo, setLiveTo] = useState('30-Sep-2026');
 
   React.useEffect(() => {
-    const src = './tally-connector.js?v=20260918-4';
+    const src = '/invoice/tally-connector.js?v=20260919-1';
     let timer: number | undefined;
     let stopped = false;
     const checkReady = () => {
