@@ -52,21 +52,50 @@ export const TallySyncHub: React.FC = () => {
     let stopped = false;
     let timer: number | undefined;
     let attempts = 0;
+    let loadStarted = false;
+
+    const loadFallbackConnector = () => {
+      if (loadStarted || (window as any).__tsPanel) return;
+      loadStarted = true;
+      const urls = [
+        '/invoice/tally-connector.js?v=20260919-v6',
+        '/tally-connector.js?v=20260919-v6',
+      ];
+      let index = 0;
+
+      const tryNext = () => {
+        if (stopped || (window as any).__tsPanel || index >= urls.length) return;
+        const src = urls[index++];
+        const s = document.createElement('script');
+        s.src = src;
+        s.async = false;
+        s.onload = () => {
+          if (!(window as any).__tsPanel) tryNext();
+        };
+        s.onerror = () => tryNext();
+        document.head.appendChild(s);
+      };
+      tryNext();
+    };
+
     const checkReady = () => {
       if (stopped) return;
       const panel = (window as any).__tsPanel;
       if (panel && typeof panel.loadCompanies === 'function') {
         setLiveReady(true);
+        setLiveStatus('');
         if (timer) window.clearInterval(timer);
         return;
       }
       setLiveReady(false);
       attempts += 1;
-      if (attempts >= 100) {
+      if (attempts === 5) loadFallbackConnector();
+      if (attempts >= 150) {
         if (timer) window.clearInterval(timer);
-        setLiveStatus('❌ Tally connector is not initialized. Please refresh the page once.');
+        setLiveStatus('❌ Tally connector load nahi hua. Please refresh once; if it repeats, connector path/deployment needs repair.');
       }
     };
+
     checkReady();
     timer = window.setInterval(checkReady, 100);
     return () => {
