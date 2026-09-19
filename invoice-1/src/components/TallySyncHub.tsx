@@ -76,33 +76,63 @@ export const TallySyncHub: React.FC = () => {
   }, []);
 
   const saveConnectorSettings = () => {
-    localStorage.setItem('tallysync_office_code', officeCode.trim().toUpperCase());
-    localStorage.setItem('tallysync_connector_url', connectorUrl.trim() || 'http://127.0.0.1:9101');
+    const cleanedCode = officeCode.trim().toUpperCase();
+    const cleanedUrl = connectorUrl.trim() || 'http://127.0.0.1:9101';
+    localStorage.setItem('tallysync_office_code', cleanedCode);
+    localStorage.setItem('tallysync_connector_url', cleanedUrl);
+    localStorage.setItem('tallysync_relay_url', 'https://tally-relay-anil-sharma.onrender.com');
     localStorage.setItem('tallysync_connector_saved_at', new Date().toISOString());
-    setLiveStatus('✅ Connection settings saved.');
+
+    const panel = (window as any).__tsPanel;
+    if (panel?.setCode) panel.setCode(cleanedCode);
+
+    setLiveStatus('✅ Connection settings saved. Ready to test.');
+  };
+
+  const checkRelayAndOfficeStatus = async () => {
+    const panel = (window as any).__tsPanel;
+    saveConnectorSettings();
+    setLiveStatus('⏳ Checking Secure Relay and Office PC status...');
+    try {
+      if (panel?.checkStatus) {
+        const res = await panel.checkStatus(officeCode.trim().toUpperCase(), 'https://tally-relay-anil-sharma.onrender.com');
+        if (res.ok && res.deviceConnected) {
+          const lastSeen = res.lastSeen ? new Date(res.lastSeen).toLocaleTimeString() : 'Just now';
+          setLiveStatus(`🟢 Connected to Office PC! (Code: ${res.code})\nWebSocket Active • Last seen: ${lastSeen}\nReady to import Tally data.`);
+        } else if (res.ok && res.relay) {
+          setLiveStatus(`🟡 Secure Relay is online, but Office Computer (Code: ${res.code || 'None'}) is offline.\n\nPlease start START-ANISH-TALLY-CONNECTOR.cmd on the office computer.`);
+        } else {
+          setLiveStatus(`🔴 ${res.message || 'Relay could not be reached'}`);
+        }
+      } else {
+        setLiveStatus('⏳ Connector initializing, please retry in 2 seconds.');
+      }
+    } catch (e: any) {
+      setLiveStatus('❌ Status check failed: ' + (e?.message || e));
+    }
   };
 
   const runLive = async (kind: string) => {
     const panel = (window as any).__tsPanel;
     if (!panel) return setLiveStatus('❌ Live connector is still loading. Refresh once if needed.');
     saveConnectorSettings();
-    localStorage.setItem('tallysync_office_code', officeCode.trim().toUpperCase());
-    localStorage.setItem('tallysync_connector_url', connectorUrl.trim() || 'http://127.0.0.1:9101');
     try {
-      setLiveStatus('⏳ Connecting to TallyPrime…');
+      setLiveStatus('⏳ Connecting to Tally on Office Computer…');
       if (kind === 'test' || kind === 'company') {
         const x = await panel.loadCompanies();
-        setLiveStatus('✅ Tally Connected\\nCompany: ' + (x?.Name || 'Loaded'));
+        setLiveStatus(`✅ Tally Connected!\n🏢 Active Company: ${x?.Name || 'Loaded'}\nGSTIN: ${x?.GSTIN || 'N/A'}\nState: ${x?.StateName || 'N/A'}`);
       } else if (kind === 'debtors') {
-        const x = await panel.importDebtors(); setLiveStatus('✅ Debtors imported\\nRecords: ' + x.length);
+        const x = await panel.importDebtors();
+        setLiveStatus(`✅ Debtors imported successfully!\nTotal: ${x.length} customer ledgers with balances & GSTIN.`);
       } else if (kind === 'items') {
-        const x = await panel.importItems(); setLiveStatus('✅ Stock items imported\\nRecords: ' + x.length);
+        const x = await panel.importItems();
+        setLiveStatus(`✅ Stock items imported successfully!\nTotal: ${x.length} stock masters with HSN, Tax Rate & Units.`);
       } else if (kind === 'invoices') {
-        const x = await panel.importInvoices(liveFrom, liveTo, (i:number,n:number,f:string,t:string)=>setLiveStatus('⏳ Sales invoice import\\nWeek ' + i + '/' + n + '\\n' + f + ' → ' + t));
-        setLiveStatus('✅ Sales invoices imported\\nRecords: ' + x.length);
+        const x = await panel.importInvoices(liveFrom, liveTo, (i:number,n:number,f:string,t:string)=>setLiveStatus('⏳ Sales invoice import batch ' + i + '/' + n + '\n' + f + ' → ' + t));
+        setLiveStatus(`✅ Sales invoices imported successfully!\nTotal: ${x.length} invoices imported.`);
       } else {
-        const x = await panel.importAll(liveFrom, liveTo, (i:number,n:number,f:string,t:string)=>setLiveStatus('⏳ Complete Tally import\\nInvoice week ' + i + '/' + n + '\\n' + f + ' → ' + t));
-        setLiveStatus('✅ Complete Tally import finished\\nDebtors: ' + x.debtors.length + '\\nItems: ' + x.items.length + '\\nSales invoices: ' + x.invoices.length);
+        const x = await panel.importAll(liveFrom, liveTo, (i:number,n:number,f:string,t:string)=>setLiveStatus('⏳ Complete Tally import\nInvoice week ' + i + '/' + n + '\n' + f + ' → ' + t));
+        setLiveStatus(`✅ Full Tally Synchronization Finished!\nCompany: ${x.company?.Name || 'Loaded'}\nDebtors: ${x.debtors.length}\nStock Items: ${x.items.length}\nSales Invoices: ${x.invoices.length}`);
       }
       window.dispatchEvent(new Event('tallysync:refresh'));
     } catch (e:any) { setLiveStatus('❌ ' + (e?.message || e)); }
@@ -278,13 +308,17 @@ export const TallySyncHub: React.FC = () => {
           <div><label className="block text-[11px] font-bold text-slate-600 mb-1">Direct Connector URL</label><input value={connectorUrl} onChange={e=>setConnectorUrl(e.target.value)} placeholder="http://127.0.0.1:9101" className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono" /></div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={saveConnectorSettings} className="px-3 py-2 rounded-lg bg-slate-800 text-white text-xs font-bold">Save Connection</button>
-          <button onClick={()=>runLive('test')} className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-bold">✓ Test Tally</button>
-          <button onClick={()=>runLive('company')} className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold">Import Companies</button>
-          <button onClick={()=>runLive('debtors')} className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-xs font-bold">Import Debtors / Ledgers</button>
-          <button onClick={()=>runLive('items')} className="px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-xs font-bold">Import Stock Items</button>
-          <button onClick={()=>runLive('invoices')} className="px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white text-xs font-bold">Import Sales Invoices</button>
-          <button onClick={()=>runLive('all')} className="px-3 py-2 rounded-lg bg-slate-900 hover:bg-black disabled:opacity-40 text-white text-xs font-bold">Import All Tally Data</button>
+          <button onClick={saveConnectorSettings} className="px-3 py-2 rounded-lg bg-slate-800 text-white text-xs font-bold hover:bg-slate-900 cursor-pointer">Save Connection</button>
+          <button onClick={checkRelayAndOfficeStatus} className="px-3 py-2 rounded-lg bg-blue-50 border border-blue-300 text-blue-900 text-xs font-bold hover:bg-blue-100 cursor-pointer">⚡ Check Relay & Office PC Status</button>
+          <button onClick={()=>runLive('test')} className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-bold cursor-pointer">✓ Test Tally</button>
+          <button onClick={()=>runLive('company')} className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold cursor-pointer">Import Companies</button>
+          <button onClick={()=>runLive('debtors')} className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-xs font-bold cursor-pointer">Import Debtors / Ledgers</button>
+          <button onClick={()=>runLive('items')} className="px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-xs font-bold cursor-pointer">Import Stock Items</button>
+          <button onClick={()=>runLive('invoices')} className="px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white text-xs font-bold cursor-pointer">Import Sales Invoices</button>
+          <button onClick={()=>runLive('all')} className="px-3 py-2 rounded-lg bg-slate-900 hover:bg-black disabled:opacity-40 text-white text-xs font-bold cursor-pointer">Import All Tally Data</button>
+          <a href="/tally-connector.zip" download="tally-connector.zip" className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 text-xs font-bold inline-flex items-center gap-1 cursor-pointer">
+            <Download className="w-3.5 h-3.5" /> Download Connector (.ZIP)
+          </a>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <input value={liveFrom} onChange={e=>setLiveFrom(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono" placeholder="From: 01-Apr-2026" />

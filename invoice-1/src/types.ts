@@ -183,3 +183,22 @@ export interface Gstr1DocIssue {
   cancelledCount: number;
   netIssued: number;
 }
+
+declare global {
+  interface Window {
+    __tsPanel?: {
+      loadCompanies: () => Promise<any>;
+      importDebtors: () => Promise<any[]>;
+      importItems: () => Promise<any[]>;
+      importInvoices: (from?: string, to?: string, progress?: (c: number, t: number, f: string, to: string) => void) => Promise<any[]>;
+      importAll: (from?: string, to?: string, progress?: (c: number, t: number, f: string, to: string) => void) => Promise<any>;
+      checkStatus: (code?: string, relay?: string) => Promise<{ ok: boolean; relay: boolean; deviceConnected: boolean; lastSeen: number | null; code: string; message: string }>;
+      getRelay?: () => string;
+      getCode?: () => string;
+      setCode?: (c: string) => void;
+      setRelay?: (r: string) => void;
+    };
+    TallySyncOpen?: () => void;
+  }
+}
+

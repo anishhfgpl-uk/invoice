@@ -23,6 +23,7 @@ interface NavbarProps {
   onOpenCreateCompany: () => void;
   onOpenNewInvoice?: () => void;
   onOpenDeploymentGuide: () => void;
+  onOpenTallyConnect: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -32,6 +33,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenCreateCompany,
   onOpenNewInvoice,
   onOpenDeploymentGuide,
+  onOpenTallyConnect,
 }) => {
   const { companies, activeCompany, activeCompanyId, setActiveCompanyId, resetToDemoData } = useApp();
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -166,13 +168,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               id="tally-connect-btn"
-              onClick={() => setActiveTab('sync')}
+              onClick={onOpenTallyConnect}
               className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-300/80 text-blue-900 rounded-lg text-xs font-semibold shadow-xs transition cursor-pointer"
-              title="Open Tally Connector and Import/Export"
+              title="Open Tally Connector and Sync Office Tally"
             >
               <UploadCloud className="w-3.5 h-3.5 text-blue-600 shrink-0" />
               <span className="hidden sm:inline">Tally Connect</span>
               <span className="sm:hidden">Tally</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
             </button>
 
             {onOpenNewInvoice && (

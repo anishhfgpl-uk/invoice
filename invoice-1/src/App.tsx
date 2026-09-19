@@ -9,6 +9,7 @@ import { Gstr1View } from './components/Gstr1View';
 import { TallySyncHub } from './components/TallySyncHub';
 import { CompanyProfileModal } from './components/CompanyProfileModal';
 import { DeploymentModal } from './components/DeploymentModal';
+import { TallyConnectModal } from './components/TallyConnectModal';
 
 const MainAppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('ledger');
@@ -17,6 +18,7 @@ const MainAppContent: React.FC = () => {
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState<boolean>(false);
   const [isCreatingCompany, setIsCreatingCompany] = useState<boolean>(false);
   const [isDeployModalOpen, setIsDeployModalOpen] = useState<boolean>(false);
+  const [isTallyConnectModalOpen, setIsTallyConnectModalOpen] = useState<boolean>(false);
 
   const { activeCompany } = useApp();
 
@@ -53,6 +55,7 @@ const MainAppContent: React.FC = () => {
           setActiveTab('invoices');
         }}
         onOpenDeploymentGuide={() => setIsDeployModalOpen(true)}
+        onOpenTallyConnect={() => setIsTallyConnectModalOpen(true)}
       />
 
       {/* Main Workspace */}
@@ -106,6 +109,12 @@ const MainAppContent: React.FC = () => {
       <DeploymentModal
         isOpen={isDeployModalOpen}
         onClose={() => setIsDeployModalOpen(false)}
+      />
+
+      {/* Office Tally Connect Modal */}
+      <TallyConnectModal
+        isOpen={isTallyConnectModalOpen}
+        onClose={() => setIsTallyConnectModalOpen(false)}
       />
     </div>
   );

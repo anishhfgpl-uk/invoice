@@ -3,6 +3,15 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "workspaces": [
+    "invoice-1",
+    "tally-relay"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=invoice-1",
+    "build": "npm run build --workspace=invoice-1 && rm -rf dist && cp -r invoice-1/dist dist",
+    "lint": "npm run lint --workspace=invoice-1"
+  },
   "dependencies": {
     "ws": "^8.18.3"
   }
