@@ -10,7 +10,7 @@ if errorlevel 1 (
 )
 set CONNECTOR_PORT=9101
 set TALLY_URL=http://127.0.0.1:9000
-set RELAY_URL=https://tally-relay-anish.onrender.com
+set RELAY_URL=https://tally-relay-anil-sharma.onrender.com
 set CODE_FILE=%~dp0office-code.txt
 
 rem Load the saved Office Code. If none exists, create one automatically.
