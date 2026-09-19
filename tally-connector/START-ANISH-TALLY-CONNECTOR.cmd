@@ -2,7 +2,7 @@
 setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
-set "RELAY_URL=https://tally-relay-anish.onrender.com"
+set "RELAY_URL=https://tally-relay-anil-sharma.onrender.com"
 set "TALLY_URL=http://127.0.0.1:9000"
 set "CONNECTOR_PORT=9101"
 set "CONNECTOR_HOST=0.0.0.0"
@@ -46,11 +46,11 @@ pause
 exit /b 1
 
 :got_node
-if not exist "%~dp0tally-connector.mjs" (
-  echo Downloading tally-connector.mjs...
-  curl.exe -L --fail --retry 3 "https://raw.githubusercontent.com/anishhfgpl-uk/invoice/main/tally-connector/tally-connector.mjs" -o "%~dp0tally-connector.mjs"
-  if errorlevel 1 goto fail
-)
+echo Updating tally-connector.mjs...
+curl.exe -L --fail --retry 3 "https://raw.githubusercontent.com/anishhfgpl-uk/invoice/main/tally-connector/tally-connector.mjs" -o "%TEMP%\tally-connector-latest.mjs"
+if errorlevel 1 goto fail
+move /Y "%TEMP%\tally-connector-latest.mjs" "%~dp0tally-connector.mjs" >nul
+if errorlevel 1 goto fail
 
 echo.
 echo ================================================
