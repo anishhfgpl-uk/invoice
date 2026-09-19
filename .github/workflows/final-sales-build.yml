@@ -1,5 +1,5 @@
 name: Final Sales Import Build
-# Rebuild trigger: 2026-09-18 connector readiness fix
+# Rebuild trigger: 2026-09-19 force connector fallback bundle rebuild
 on:
   push:
     branches: [main]
