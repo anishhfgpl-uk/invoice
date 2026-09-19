@@ -12,7 +12,7 @@ async function request(u,xml,timeout=60000){
   const t=await r.text(); if(!r.ok)throw Error(t.slice(0,400)||`HTTP ${r.status}`); return t;
 }
 async function post(xml){
-  const c=code(),local=saved().replace(/\\/$/,''),remote=c?`${RELAY}/api/device/${encodeURIComponent(c)}/xml`:'';
+  const c=code(),local=saved().replace(/\/$/,''),remote=c?`${RELAY}/api/device/${encodeURIComponent(c)}/xml`:'';
   if(remote){
     try{return await request(remote,xml,60000)}catch(e){
       const msg=e?.name==='AbortError'||e?.name==='TimeoutError'?'Remote relay/Tally request timed out after 60 sec':`Remote relay failed: ${e?.message||e}`;
